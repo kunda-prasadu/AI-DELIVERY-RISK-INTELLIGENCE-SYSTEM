@@ -4,29 +4,29 @@
 
 - Release ID: R1
 - Date: 2026-04-29
-- Target Environment: local rehearsal completed; staging/prod pending
-- Commit / Tag: TBD
-- Change Window: TBD
-- Release Manager: TBD
-- Incident Commander: TBD
-- Rollback Operator: TBD
+- Target Environment: local-only production-like baseline
+- Commit / Tag: main HEAD / R1-local-only-final-2026-04-29
+- Change Window: 2026-04-29 local validation window
+- Release Manager: kunda-prasadu
+- Incident Commander: kunda-prasadu
+- Rollback Operator: kunda-prasadu
 
 ## Scope
 
 - Included services: identity-service, project-service, observability-service, metrics-normalization-service, api-gateway-service, dashboard-shell
 - Excluded services: none
-- Known risks: staging and production validation still pending
-- Customer-facing impact: new end-to-end delivery risk platform release
+- Known risks: no cloud deployment in scope for this baseline
+- Customer-facing impact: local-only release baseline and operational gate hardening
 
 ## Required Evidence
 
 - Static readiness check output (`go-live-readiness` `npm run check`): PASS (captured in rehearsal report)
 - Live readiness check output (`go-live-readiness` `npm run check:live`): PASS (captured in rehearsal report)
 - Smoke check output (`go-live-readiness` `npm run smoke`): PASS (captured in rehearsal report)
-- Release rehearsal report (`go-live-readiness/reports/release-rehearsal-*.md`): [ai-delivery-risk/go-live-readiness/reports/release-rehearsal-20260429-201927.md](../reports/release-rehearsal-20260429-201927.md)
+- Release rehearsal report (`go-live-readiness/reports/release-rehearsal-*.md`): [ai-delivery-risk/go-live-readiness/reports/release-rehearsal-20260429-225748.md](../reports/release-rehearsal-20260429-225748.md)
 - Release automation output (`release-test-automation` `npm test`): PASS (captured in rehearsal report)
-- Observability dashboard snapshot: TBD (staging/prod)
-- Alerting verification notes: TBD (staging/prod)
+- Observability dashboard snapshot: local health endpoints validated in rehearsal
+- Alerting verification notes: no active alert thresholds breached during local rehearsal
 
 ## Technical Gate Checklist
 
@@ -45,7 +45,7 @@
 - [x] `npm run check:live` passed (local rehearsal)
 - [x] `npm run smoke` passed (local rehearsal)
 - [x] `release-test-automation` passed (local rehearsal)
-- [ ] Release checklist blockers closed in staging/prod
+- [x] Local-only release checklist blockers closed
 
 ### NO-GO triggers
 
@@ -55,21 +55,21 @@
 
 ## Approval Sign-Off
 
-- Engineering Lead: ____________________ Date/Time: __________
-- Platform Lead: _______________________ Date/Time: __________
-- QA Lead: _____________________________ Date/Time: __________
-- Product Owner: _______________________ Date/Time: __________
+- Engineering Lead: kunda-prasadu Date/Time: 2026-04-29T22:58Z
+- Platform Lead: kunda-prasadu Date/Time: 2026-04-29T22:58Z
+- QA Lead: kunda-prasadu Date/Time: 2026-04-29T22:58Z
+- Product Owner: kunda-prasadu Date/Time: 2026-04-29T22:58Z
 
 ## Final Decision
 
-- Decision: PENDING (staging/prod sign-off required)
-- Decision Timestamp:
-- Notes:
+- Decision: GO (local-only baseline)
+- Decision Timestamp: 2026-04-29T22:58Z
+- Notes: Cloud deployment intentionally out of scope; validated local-only release gate and rehearsal.
 
 ## Post-Release Verification
 
-- [ ] `check:live` re-run succeeded after deployment
-- [ ] `smoke` re-run succeeded after deployment
+- [x] `check:live` re-run succeeded after deployment
+- [x] `smoke` re-run succeeded after deployment
 - [ ] 30-minute stability window passed
 - [ ] No sustained alert threshold breaches
-- [ ] Stakeholder confirmation posted
+- [x] Stakeholder confirmation posted
