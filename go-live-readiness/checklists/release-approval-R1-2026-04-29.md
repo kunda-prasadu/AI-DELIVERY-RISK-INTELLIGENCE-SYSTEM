@@ -73,3 +73,7 @@
 - [ ] 30-minute stability window passed
 - [ ] No sustained alert threshold breaches
 - [x] Stakeholder confirmation posted
+
+Notes:
+- 2026-04-29T17:34Z: Resolved false-negative container health by exempting `identity-service` `/health` endpoint from global request rate limiting.
+- 2026-04-29T17:34Z onward: identity container reports `healthy`; begin fresh 30-minute stability observation from this timestamp.

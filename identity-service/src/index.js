@@ -23,13 +23,21 @@ app.use((req, res, next) => {
 });
 
 // ── Global rate limiter ───────────────────────────────────────────────────────
-app.use(rateLimit({
+const globalLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.max,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests — slow down' },
-}));
+});
+
+app.use((req, res, next) => {
+  if (req.path === '/health') {
+    return next();
+  }
+
+  return globalLimiter(req, res, next);
+});
 
 // ── Request logging ───────────────────────────────────────────────────────────
 app.use((req, _res, next) => {
