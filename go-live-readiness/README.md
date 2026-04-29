@@ -17,10 +17,11 @@ This package provides release-readiness artifacts for the AI Delivery Risk Intel
 ```bash
 npm run check
 npm run check:live
-npm run check:staging
 npm run smoke
 npm test
 ```
+
+Default workflow is local-first and does not require any cloud account.
 
 For staging/production, set remote endpoint variables (see `.env.remote.example`) and run:
 
@@ -32,19 +33,18 @@ Profile examples are available in `profiles/`:
 
 - `profiles/staging.env.example`
 - `profiles/production.env.example`
-- `profiles/render-staging.env.example`
 
-For quick staging validation using `profiles/staging.env`, run:
+For quick local profile validation using `profiles/staging.env`, run:
 
 ```bash
-npm run check:staging
+npm run check:live
+npm run smoke
 ```
 
 You can run profile-based remote validation from repo root:
 
 ```bash
 ./scripts/validate-release-profile.sh staging
-./scripts/validate-render-staging.sh
 ```
 
 And for a full remote release validation from repository root:
@@ -61,9 +61,9 @@ From repository root, you can also run a full release rehearsal:
 
 This generates a timestamped report under `go-live-readiness/reports/`.
 
-For manually curated deployment evidence, use:
+For manually curated deployment evidence, update:
 
-- `go-live-readiness/reports/staging-evidence-template.md`
+- `go-live-readiness/reports/latest-readiness-evidence.md`
 
 Use the release approval template at [go-live-readiness/checklists/release-approval-template.md](checklists/release-approval-template.md) to capture sign-offs and evidence before final GO decision.
 
