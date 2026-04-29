@@ -58,6 +58,30 @@ Run a full one-command release rehearsal (start, validate, smoke, stop, report):
 ./scripts/validate-release.sh
 ```
 
+Run the stack in Docker Compose for a production-like local deployment:
+
+```bash
+./scripts/start-compose-stack.sh
+```
+
+Run only the backend services in Docker Compose:
+
+```bash
+./scripts/start-compose-backend-stack.sh
+```
+
+Stop the Compose stack:
+
+```bash
+./scripts/stop-compose-stack.sh
+```
+
+Run Compose-based live validation and smoke checks:
+
+```bash
+./scripts/validate-compose-stack.sh
+```
+
 Run remote/staging validation (no local service startup) with:
 
 ```bash
@@ -147,3 +171,7 @@ cd release-test-automation && npm run test:baseline
 The background backend services that were started for local validation have been stopped cleanly. Re-run the startup sequence above before using `npm run check:live` or `npm run smoke` again.
 
 The recommended shortcut is to use [ai-delivery-risk/scripts/start-local-backend-stack.sh](scripts/start-local-backend-stack.sh) and [ai-delivery-risk/scripts/stop-local-backend-stack.sh](scripts/stop-local-backend-stack.sh).
+
+For a containerized local deployment, use [ai-delivery-risk/docker-compose.yml](docker-compose.yml) with [ai-delivery-risk/scripts/start-compose-stack.sh](scripts/start-compose-stack.sh) and [ai-delivery-risk/scripts/stop-compose-stack.sh](scripts/stop-compose-stack.sh). The dashboard is served at `http://127.0.0.1:4200`, and its `/api/*` requests are proxied to the local gateway.
+
+If you only need the APIs and readiness tooling, use [ai-delivery-risk/scripts/start-compose-backend-stack.sh](scripts/start-compose-backend-stack.sh). The Compose file now includes native healthchecks so downstream services wait for upstream readiness before starting.

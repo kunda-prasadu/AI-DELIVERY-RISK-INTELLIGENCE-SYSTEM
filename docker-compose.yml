@@ -1,0 +1,118 @@
+services:
+  identity-service:
+    build:
+      context: .
+      dockerfile: identity-service/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      JWT_SECRET: dev-secret-change-in-production-min-32-chars!!
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3001/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '3001:3001'
+
+  project-service:
+    build:
+      context: .
+      dockerfile: project-service/Dockerfile
+    depends_on:
+      identity-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      JWT_SECRET: dev-secret-change-in-production-min-32-chars!!
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3002/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '3002:3002'
+
+  observability-service:
+    build:
+      context: .
+      dockerfile: observability-service/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3003/health/live').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '3003:3003'
+
+  metrics-normalization-service:
+    build:
+      context: .
+      dockerfile: metrics-normalization-service/Dockerfile
+    depends_on:
+      observability-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3004/health/live').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '3004:3004'
+
+  api-gateway-service:
+    build:
+      context: .
+      dockerfile: api-gateway-service/Dockerfile
+    depends_on:
+      identity-service:
+        condition: service_healthy
+      project-service:
+        condition: service_healthy
+      observability-service:
+        condition: service_healthy
+      metrics-normalization-service:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      JWT_SECRET: dev-secret-change-in-production-min-32-chars!!
+      IDENTITY_SERVICE_URL: http://identity-service:3001/auth
+      PROJECT_SERVICE_URL: http://project-service:3002/projects
+      OBSERVABILITY_SERVICE_URL: http://observability-service:3003
+      METRICS_SERVICE_URL: http://metrics-normalization-service:3004/metrics
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3005/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '3005:3005'
+
+  dashboard-shell:
+    build:
+      context: .
+      dockerfile: dashboard-shell/Dockerfile
+    depends_on:
+      api-gateway-service:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O - http://127.0.0.1/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    ports:
+      - '4200:80'
