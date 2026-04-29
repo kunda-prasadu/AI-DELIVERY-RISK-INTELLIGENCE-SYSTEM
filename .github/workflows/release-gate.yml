@@ -52,7 +52,12 @@ jobs:
           node-version: 20
 
       - name: Install readiness dependencies
-        run: npm ci
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
         working-directory: go-live-readiness
 
       - name: Run compose-backed readiness validation
@@ -82,6 +87,12 @@ jobs:
           if [[ -z "$STAGING_PROFILE_ENV" ]]; then
             echo "available=false" >> "$GITHUB_OUTPUT"
             echo "Skipping staging gate: STAGING_PROFILE_ENV is not configured."
+            exit 0
+          fi
+
+          if grep -Eq '127\.0\.0\.1|localhost' <<<"$STAGING_PROFILE_ENV"; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping staging gate: STAGING_PROFILE_ENV uses localhost endpoints."
             exit 0
           fi
 
