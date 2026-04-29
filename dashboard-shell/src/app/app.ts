@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from './shared/services/auth.service';
+import { RiskService } from './shared/services/risk.service';
 
 @Component({
   selector: 'app-root',
@@ -12,30 +13,15 @@ import { AuthService } from './shared/services/auth.service';
 export class App implements OnInit {
   title = 'RiskIntel Dashboard';
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private riskService: RiskService
+  ) {}
 
   ngOnInit(): void {
-    // Initialize auth state from localStorage (for demo purposes).
-    // In production, this would call an identity-service /auth/me endpoint.
-    // For now, we seed a demo user for testing RBAC.
-    if (!this.authService.isAuthenticated()) {
-      this.authService.setAuthState(
-        {
-          id: 'demo-user-001',
-          email: 'delivery@example.com',
-          role: 'delivery_manager',
-          permissions: [
-            'projects:read',
-            'projects:write',
-            'risk:read',
-            'recommendations:assign',
-          ],
-        },
-        {
-          accessToken: 'demo-token-access',
-          refreshToken: 'demo-token-refresh',
-        }
-      );
-    }
+    this.authService.initializeSession().subscribe(() => {
+      // Refresh risk data after auth is initialized so protected endpoints succeed.
+      this.riskService.refreshRiskScores().subscribe();
+    });
   }
 }

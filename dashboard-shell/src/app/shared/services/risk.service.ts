@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
+import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
 
 export interface RiskScore {
   projectId: string;
@@ -19,8 +21,11 @@ export interface RiskScore {
   providedIn: 'root',
 })
 export class RiskService {
-  // In production, this fetches from /projects/:id/risk-score
-  private riskScores$ = new BehaviorSubject<RiskScore[]>([
+  private readonly PROJECTS_BASE = '/api/projects';
+  private hasAttemptedLoad = false;
+  private loading = false;
+
+  private readonly fallbackRiskScores: RiskScore[] = [
     {
       projectId: 'proj-payments',
       projectName: 'Payments Gateway',
@@ -61,20 +66,67 @@ export class RiskService {
       signals: { codeVelocity: 40, quality: 32, cicd: 35, jiraVelocity: 33 },
       lastUpdated: new Date().toISOString(),
     },
-  ]);
+  ];
 
-  constructor() {}
+  private riskScores$ = new BehaviorSubject<RiskScore[]>([]);
+
+  constructor(private http: HttpClient) {}
 
   getRiskScores(): Observable<RiskScore[]> {
+    if (!this.hasAttemptedLoad) {
+      this.refreshRiskScores().subscribe();
+    }
     return this.riskScores$.asObservable();
   }
 
   getRiskScore(projectId: string): Observable<RiskScore | undefined> {
-    return new Observable(observer => {
-      this.riskScores$.subscribe(scores => {
-        observer.next(scores.find(s => s.projectId === projectId));
-      });
-    });
+    return this.getRiskScores().pipe(map(scores => scores.find(s => s.projectId === projectId)));
+  }
+
+  refreshRiskScores(): Observable<RiskScore[]> {
+    if (this.loading) {
+      return this.riskScores$.asObservable();
+    }
+
+    this.hasAttemptedLoad = true;
+    this.loading = true;
+
+    return this.http.get<{ projects: Array<{ id: string; name: string }> }>(this.PROJECTS_BASE).pipe(
+      map(response => response.projects || []),
+      map(projects => projects.slice(0, 25)),
+      switchMap(projects => {
+        if (!projects.length) {
+          return of([] as RiskScore[]);
+        }
+
+        const requests = projects.map(project =>
+          this.http
+            .get<{ riskScore: { score: number; band: RiskScore['band']; signals: RiskScore['signals']; computedAt?: string } }>(
+              `${this.PROJECTS_BASE}/${project.id}/risk-score`
+            )
+            .pipe(
+              map(result => ({
+                projectId: project.id,
+                projectName: project.name,
+                score: result.riskScore.score,
+                band: result.riskScore.band,
+                signals: result.riskScore.signals,
+                lastUpdated: result.riskScore.computedAt || new Date().toISOString(),
+              }))
+            )
+        );
+
+        return forkJoin(requests);
+      }),
+      tap(scores => this.riskScores$.next(scores)),
+      catchError(() => {
+        this.riskScores$.next(this.fallbackRiskScores);
+        return of(this.fallbackRiskScores);
+      }),
+      finalize(() => {
+        this.loading = false;
+      })
+    );
   }
 
   /**
