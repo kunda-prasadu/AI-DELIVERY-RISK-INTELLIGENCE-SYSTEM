@@ -1,0 +1,107 @@
+envVarGroups:
+  - name: ai-risk-shared-config
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: JWT_SECRET
+        generateValue: true
+
+services:
+  - type: web
+    name: ai-risk-identity-service
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: identity-service/Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: ai-risk-shared-config
+
+  - type: web
+    name: ai-risk-project-service
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: project-service/Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    envVars:
+      - fromGroup: ai-risk-shared-config
+
+  - type: web
+    name: ai-risk-observability-service
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: observability-service/Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health/live
+    envVars:
+      - fromGroup: ai-risk-shared-config
+
+  - type: web
+    name: ai-risk-metrics-service
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: metrics-normalization-service/Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health/live
+    envVars:
+      - fromGroup: ai-risk-shared-config
+
+  - type: web
+    name: ai-risk-api-gateway
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: .
+    dockerfilePath: api-gateway-service/Dockerfile
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    dockerCommand: >-
+      sh -lc 'export IDENTITY_SERVICE_URL="http://${IDENTITY_SERVICE_HOSTPORT}/auth" &&
+      export PROJECT_SERVICE_URL="http://${PROJECT_SERVICE_HOSTPORT}/projects" &&
+      export OBSERVABILITY_SERVICE_URL="http://${OBSERVABILITY_SERVICE_HOSTPORT}" &&
+      export METRICS_SERVICE_URL="http://${METRICS_SERVICE_HOSTPORT}/metrics" &&
+      npm start'
+    envVars:
+      - fromGroup: ai-risk-shared-config
+      - key: IDENTITY_SERVICE_HOSTPORT
+        fromService:
+          name: ai-risk-identity-service
+          type: web
+          property: hostport
+      - key: PROJECT_SERVICE_HOSTPORT
+        fromService:
+          name: ai-risk-project-service
+          type: web
+          property: hostport
+      - key: OBSERVABILITY_SERVICE_HOSTPORT
+        fromService:
+          name: ai-risk-observability-service
+          type: web
+          property: hostport
+      - key: METRICS_SERVICE_HOSTPORT
+        fromService:
+          name: ai-risk-metrics-service
+          type: web
+          property: hostport
+
+  - type: web
+    name: ai-risk-dashboard
+    runtime: static
+    buildCommand: cd dashboard-shell && npm ci && npm run build
+    staticPublishPath: dashboard-shell/dist/dashboard-shell/browser
+    autoDeployTrigger: commit
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -168,10 +168,13 @@ cd release-test-automation && npm run test:baseline
 - Release automation: [ai-delivery-risk/release-test-automation/README.md](release-test-automation/README.md)
 - Go-live readiness: [ai-delivery-risk/go-live-readiness/README.md](go-live-readiness/README.md)
 - Local demo runbook: [ai-delivery-risk/go-live-readiness/runbooks/local-demo.md](go-live-readiness/runbooks/local-demo.md)
+- Render deployment runbook: [ai-delivery-risk/go-live-readiness/runbooks/render-deployment.md](go-live-readiness/runbooks/render-deployment.md)
 - Release checklist: [ai-delivery-risk/go-live-readiness/checklists/release-checklist.md](go-live-readiness/checklists/release-checklist.md)
 - Release approval template: [ai-delivery-risk/go-live-readiness/checklists/release-approval-template.md](go-live-readiness/checklists/release-approval-template.md)
 - Incident response: [ai-delivery-risk/go-live-readiness/runbooks/incident-response.md](go-live-readiness/runbooks/incident-response.md)
 - Rollback playbook: [ai-delivery-risk/go-live-readiness/runbooks/rollback-playbook.md](go-live-readiness/runbooks/rollback-playbook.md)
+
+For future cloud deployment preparation, see [ai-delivery-risk/render.yaml](render.yaml) and [ai-delivery-risk/go-live-readiness/runbooks/render-deployment.md](go-live-readiness/runbooks/render-deployment.md).
 
 ## Current Workspace State
 
