@@ -167,6 +167,7 @@ cd release-test-automation && npm run test:baseline
 - Observability details: [ai-delivery-risk/observability-service/README.md](observability-service/README.md)
 - Release automation: [ai-delivery-risk/release-test-automation/README.md](release-test-automation/README.md)
 - Go-live readiness: [ai-delivery-risk/go-live-readiness/README.md](go-live-readiness/README.md)
+- Local demo runbook: [ai-delivery-risk/go-live-readiness/runbooks/local-demo.md](go-live-readiness/runbooks/local-demo.md)
 - Release checklist: [ai-delivery-risk/go-live-readiness/checklists/release-checklist.md](go-live-readiness/checklists/release-checklist.md)
 - Release approval template: [ai-delivery-risk/go-live-readiness/checklists/release-approval-template.md](go-live-readiness/checklists/release-approval-template.md)
 - Incident response: [ai-delivery-risk/go-live-readiness/runbooks/incident-response.md](go-live-readiness/runbooks/incident-response.md)
