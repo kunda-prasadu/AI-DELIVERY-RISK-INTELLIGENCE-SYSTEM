@@ -1,0 +1,67 @@
+name: Release Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend-tests:
+    name: Frontend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: dashboard-shell/package-lock.json
+
+      - name: Setup Chrome
+        uses: browser-actions/setup-chrome@v1
+
+      - name: Install dashboard dependencies
+        run: npm ci
+        working-directory: dashboard-shell
+
+      - name: Run dashboard unit tests
+        run: npm run test -- --watch=false --browsers=ChromeHeadless
+        working-directory: dashboard-shell
+
+  readiness-gate:
+    name: Readiness and Smoke Gate
+    runs-on: ubuntu-latest
+    needs: frontend-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: go-live-readiness/package-lock.json
+
+      - name: Install readiness dependencies
+        run: npm ci
+        working-directory: go-live-readiness
+
+      - name: Run compose-backed readiness validation
+        run: ./scripts/validate-compose-stack.sh
+
+      - name: Collect compose diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --tail=200
