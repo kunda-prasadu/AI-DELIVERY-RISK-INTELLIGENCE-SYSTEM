@@ -1,0 +1,26 @@
+{
+  "name": "release-test-automation",
+  "version": "1.0.0",
+  "description": "E-109 Release 1 Test Automation Pack",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest --runInBand --detectOpenHandles --forceExit",
+    "test:integration": "jest tests/integration.gateway-flow.test.js --runInBand",
+    "test:contract": "jest tests/contract.api-shapes.test.js --runInBand",
+    "test:baseline": "jest tests/baseline.load-smoke.test.js --runInBand"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "joi": "^17.12.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  }
+}

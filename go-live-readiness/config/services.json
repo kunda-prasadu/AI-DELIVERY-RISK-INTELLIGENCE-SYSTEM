@@ -1,0 +1,66 @@
+[
+  {
+    "id": "connector-framework",
+    "path": "connector-framework",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": null
+  },
+  {
+    "id": "identity-service",
+    "path": "identity-service",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": "http://127.0.0.1:3001/health"
+  },
+  {
+    "id": "project-service",
+    "path": "project-service",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": "http://127.0.0.1:3002/health"
+  },
+  {
+    "id": "observability-service",
+    "path": "observability-service",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": "http://127.0.0.1:3003/health/live"
+  },
+  {
+    "id": "metrics-normalization-service",
+    "path": "metrics-normalization-service",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": "http://127.0.0.1:3004/health/live"
+  },
+  {
+    "id": "api-gateway-service",
+    "path": "api-gateway-service",
+    "type": "backend",
+    "requiredScripts": ["start", "test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": "http://127.0.0.1:3005/health"
+  },
+  {
+    "id": "dashboard-shell",
+    "path": "dashboard-shell",
+    "type": "frontend",
+    "requiredScripts": ["start", "build"],
+    "requiresEnvExample": false,
+    "recommendedHealthUrl": null
+  },
+  {
+    "id": "release-test-automation",
+    "path": "release-test-automation",
+    "type": "qa",
+    "requiredScripts": ["test"],
+    "requiresEnvExample": true,
+    "recommendedHealthUrl": null
+  }
+]

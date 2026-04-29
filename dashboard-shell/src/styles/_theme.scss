@@ -1,0 +1,115 @@
+// RiskIntel AI — Material Design 3 Color System
+
+$primary: #3525cd;
+$primary-container: #4f46e5;
+$on-primary: #ffffff;
+$on-primary-container: #dad7ff;
+
+$secondary: #565e74;
+$on-secondary: #ffffff;
+$secondary-container: #dae2fd;
+
+$error: #ba1a1a;
+$on-error: #ffffff;
+
+$success: #2e7d32;
+$on-success: #ffffff;
+
+$warning: #f57c00;
+$on-warning: #ffffff;
+
+$surface: #fcf8ff;
+$surface-container: #f0ecf9;
+$surface-container-high: #eae6f4;
+$on-surface: #1b1b24;
+$on-surface-variant: #464555;
+
+$background: #fcf8ff;
+$outline: #777587;
+$outline-variant: #c7c4d8;
+
+// Typography
+$font-family: 'Inter', sans-serif;
+
+$text-display-lg: (
+  'font-family': $font-family,
+  'font-size': 36px,
+  'font-weight': 700,
+  'line-height': 44px,
+  'letter-spacing': -0.02em,
+);
+
+$text-headline-lg: (
+  'font-family': $font-family,
+  'font-size': 24px,
+  'font-weight': 600,
+  'line-height': 32px,
+  'letter-spacing': -0.01em,
+);
+
+$text-headline-md: (
+  'font-family': $font-family,
+  'font-size': 20px,
+  'font-weight': 600,
+  'line-height': 28px,
+  'letter-spacing': -0.01em,
+);
+
+$text-title-lg: (
+  'font-family': $font-family,
+  'font-size': 18px,
+  'font-weight': 600,
+  'line-height': 26px,
+);
+
+$text-body-lg: (
+  'font-family': $font-family,
+  'font-size': 16px,
+  'font-weight': 400,
+  'line-height': 24px,
+);
+
+$text-body-md: (
+  'font-family': $font-family,
+  'font-size': 14px,
+  'font-weight': 400,
+  'line-height': 20px,
+);
+
+$text-label-md: (
+  'font-family': $font-family,
+  'font-size': 12px,
+  'font-weight': 500,
+  'line-height': 16px,
+  'letter-spacing': 0.02em,
+);
+
+// Spacing
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// Breakpoints
+$bp-mobile: 480px;
+$bp-tablet: 768px;
+$bp-desktop: 1024px;
+$bp-wide: 1440px;
+
+// Border radius
+$radius-sm: 2px;
+$radius-md: 4px;
+$radius-lg: 8px;
+$radius-xl: 12px;
+
+// Severity badges
+$severity-critical: #ba1a1a;
+$severity-high: #f57c00;
+$severity-medium: #f9a825;
+$severity-low: #2e7d32;
+
+// Shadows
+$shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+$shadow-md: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+$shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);

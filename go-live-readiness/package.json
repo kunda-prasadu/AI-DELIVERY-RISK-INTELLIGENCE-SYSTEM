@@ -1,0 +1,12 @@
+{
+  "name": "go-live-readiness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "E-110 Go-Live readiness kit for AI Delivery Risk Intelligence",
+  "scripts": {
+    "check": "node scripts/readiness-check.js",
+    "check:live": "node scripts/readiness-check.js --live",
+    "smoke": "node scripts/smoke-check.js",
+    "test": "node --test tests/*.test.js"
+  }
+}

@@ -1,0 +1,126 @@
+
+@use '@angular/material' as mat;
+@import 'styles/theme';
+
+// Import fonts via CSS
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+// Custom CSS variables for RiskIntel design system
+:root {
+  --ri-primary: #{$primary};
+  --ri-primary-container: #{$primary-container};
+  --ri-on-primary: #{$on-primary};
+  --ri-secondary: #{$secondary};
+  --ri-on-secondary: #{$on-secondary};
+  --ri-error: #{$error};
+  --ri-success: #{$success};
+  --ri-warning: #{$warning};
+  --ri-surface: #{$surface};
+  --ri-surface-container: #{$surface-container};
+  --ri-on-surface: #{$on-surface};
+  --ri-on-surface-variant: #{$on-surface-variant};
+  --ri-background: #{$background};
+  --ri-outline: #{$outline};
+  --ri-outline-variant: #{$outline-variant};
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  color-scheme: light;
+  background-color: var(--ri-background);
+  color: var(--ri-on-surface);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  height: 100%;
+}
+
+app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+// Global utility classes
+.text-headline-lg {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 32px;
+  letter-spacing: -0.01em;
+}
+
+.text-headline-md {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+}
+
+.text-title-lg {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+}
+
+.text-body-lg {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+}
+
+.text-body-md {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
+.text-label-md {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+}
+
+.badge-critical {
+  background-color: #{$severity-critical};
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-high {
+  background-color: #{$severity-high};
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-medium {
+  background-color: #{$severity-medium};
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-low {
+  background-color: #{$severity-low};
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}

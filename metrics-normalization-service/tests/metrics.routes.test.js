@@ -1,0 +1,130 @@
+'use strict';
+
+const express = require('express');
+const request = require('supertest');
+const metricsRoutes = require('../src/routes/metrics.routes');
+const aggregator = require('../src/models/metrics.aggregator');
+const orchestrator = require('../src/models/pipeline.orchestrator');
+
+describe('metrics.routes', () => {
+  let app;
+
+  beforeEach(() => {
+    aggregator._reset();
+    orchestrator.previousSnapshot = new Map();
+
+    app = express();
+    app.use(express.json());
+    app.use('/metrics', metricsRoutes);
+  });
+
+  test('POST /metrics/events ingests events and reports rejected', async () => {
+    const res = await request(app)
+      .post('/metrics/events')
+      .send({
+        events: [
+          {
+            source: 'github',
+            eventType: 'commit',
+            projectId: 'p1',
+            timestamp: '2026-04-29T10:00:00.000Z',
+            severity: 'low',
+          },
+          {
+            source: 'unknown-source',
+            eventType: 'x',
+            projectId: 'p1',
+            timestamp: '2026-04-29T10:00:00.000Z',
+            severity: 'low',
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.received).toBe(2);
+    expect(res.body.accepted).toBe(1);
+    expect(res.body.rejected).toBe(1);
+  });
+
+  test('GET /metrics/projects/:projectId returns project metrics', async () => {
+    aggregator.ingest({
+      source: 'jira',
+      eventType: 'issue_blocked',
+      projectId: 'p2',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'high',
+    });
+
+    const res = await request(app).get('/metrics/projects/p2');
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe('p2');
+    expect(res.body.totalEvents).toBe(1);
+  });
+
+  test('GET /metrics/projects/:projectId returns 404 when missing', async () => {
+    const res = await request(app).get('/metrics/projects/missing');
+    expect(res.status).toBe(404);
+  });
+
+  test('GET /metrics/projects returns all projects', async () => {
+    aggregator.ingest({
+      source: 'jira',
+      eventType: 'issue_created',
+      projectId: 'p1',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'low',
+    });
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p2',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+
+    const res = await request(app).get('/metrics/projects');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveLength(2);
+  });
+
+  test('GET /metrics/summary returns aggregate values', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p2',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+
+    const res = await request(app).get('/metrics/summary');
+    expect(res.status).toBe(200);
+    expect(res.body.totalEvents).toBe(1);
+    expect(res.body.projects).toBe(1);
+    expect(res.body.projectsWithCritical).toBe(1);
+  });
+
+  test('GET /metrics/projects/:projectId/trend returns trend output', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p3',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+    orchestrator.captureSnapshot();
+
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p3',
+      timestamp: '2026-04-29T10:05:00.000Z',
+      severity: 'critical',
+    });
+
+    const res = await request(app).get('/metrics/projects/p3/trend');
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe('p3');
+    expect(res.body.trend).toBe('regression');
+  });
+});
