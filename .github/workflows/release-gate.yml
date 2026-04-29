@@ -65,3 +65,29 @@ jobs:
         run: |
           docker compose ps
           docker compose logs --tail=200
+
+  staging-gate:
+    name: Optional Render Staging Gate
+    runs-on: ubuntu-latest
+    needs: readiness-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.STAGING_PROFILE_ENV != ''
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create staging profile from secret
+        run: |
+          mkdir -p go-live-readiness/profiles
+          cat > go-live-readiness/profiles/ci-staging.env <<'EOF'
+          ${{ secrets.STAGING_PROFILE_ENV }}
+          EOF
+
+      - name: Validate Render staging profile
+        run: ./scripts/validate-render-staging.sh go-live-readiness/profiles/ci-staging.env
+
+      - name: Collect staging diagnostics on failure
+        if: failure()
+        run: |
+          echo "Staging validation failed."
+          ls -la go-live-readiness/reports || true
