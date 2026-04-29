@@ -1,25 +1,60 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
+import { ProjectsService } from '../../shared/services/projects.service';
+import { RiskScore, RiskService } from '../../shared/services/risk.service';
+
+interface DashboardMetrics {
+  openHighRisks: number;
+  activeProjects: number;
+  avgProbability: number;
+  lowRiskProjects: number;
+}
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule],
+  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule],
   template: `
     <div class="dashboard-container">
       <h1 class="text-display-lg">Delivery Dashboard</h1>
       <p class="subtitle">Multi-stream project health monitoring and risk distribution tracking.</p>
 
-      <div class="cards-grid">
+      <div class="toolbar-row">
+        <p class="last-updated" *ngIf="lastUpdated && !loading">Last updated: {{ lastUpdated }}</p>
+        <button mat-stroked-button type="button" (click)="loadDashboard()" [disabled]="loading">Refresh</button>
+      </div>
+
+      <mat-card class="state-card" *ngIf="loading">
+        <mat-card-content>
+          <div class="state-content">
+            <mat-spinner diameter="32"></mat-spinner>
+            <p>Loading live dashboard metrics...</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="state-card error" *ngIf="!loading && errorMessage">
+        <mat-card-content>
+          <div class="state-content">
+            <p>{{ errorMessage }}</p>
+            <button mat-flat-button type="button" (click)="loadDashboard()">Try Again</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <div class="cards-grid" *ngIf="!loading && !errorMessage">
         <mat-card class="metric-card">
           <mat-card-header>
             <mat-card-title>Open High Risks</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="metric-value">24</div>
-            <p class="metric-detail text-label-md">Critical unreached</p>
+            <div class="metric-value">{{ metrics.openHighRisks }}</div>
+            <p class="metric-detail text-label-md">HIGH and CRITICAL portfolio risks</p>
           </mat-card-content>
         </mat-card>
 
@@ -28,8 +63,8 @@ import { MatButtonModule } from '@angular/material/button';
             <mat-card-title>Active Projects</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="metric-value">12</div>
-            <p class="metric-detail text-label-md">On track, 4 delayed</p>
+            <div class="metric-value">{{ metrics.activeProjects }}</div>
+            <p class="metric-detail text-label-md">Currently tracked in gateway</p>
           </mat-card-content>
         </mat-card>
 
@@ -38,37 +73,52 @@ import { MatButtonModule } from '@angular/material/button';
             <mat-card-title>Avg Probability</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="metric-value">64%</div>
-            <p class="metric-detail text-label-md">Stable since last sprint</p>
+            <div class="metric-value">{{ metrics.avgProbability }}%</div>
+            <p class="metric-detail text-label-md">Average model-derived risk score</p>
           </mat-card-content>
         </mat-card>
 
         <mat-card class="metric-card">
           <mat-card-header>
-            <mat-card-title>Resolved (7D)</mat-card-title>
+            <mat-card-title>Low-Risk Projects</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="metric-value">18</div>
-            <p class="metric-detail text-label-md">4 ahead of schedule</p>
+            <div class="metric-value">{{ metrics.lowRiskProjects }}</div>
+            <p class="metric-detail text-label-md">Projects currently in LOW band</p>
           </mat-card-content>
         </mat-card>
       </div>
 
-      <mat-card class="section-card">
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
         <mat-card-header>
-          <mat-card-title>Risk Distribution Heatmap</mat-card-title>
+          <mat-card-title>Highest Risk Programs</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <p>Heatmap visualization coming soon — powered by real-time event signals.</p>
+          <p *ngIf="!topRisks.length">No risk scores are available yet.</p>
+          <div class="list-row" *ngFor="let risk of topRisks">
+            <span class="program-name">{{ risk.projectName }}</span>
+            <span class="risk-chip" [class]="'risk-' + risk.band.toLowerCase()">
+              {{ risk.band }} · {{ risk.score }}
+            </span>
+          </div>
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="section-card">
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
         <mat-card-header>
           <mat-card-title>AI Prescriptive Actions</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <p>Actionable recommendations based on detected risk patterns will appear here.</p>
+          <p class="action" *ngIf="metrics.openHighRisks === 0">No urgent escalations needed. Keep monitoring delivery signals.</p>
+          <p class="action" *ngIf="metrics.openHighRisks > 0">
+            Prioritize remediation plans for {{ metrics.openHighRisks }} high-risk programs and trigger engineering deep-dive reviews.
+          </p>
+          <p class="action" *ngIf="metrics.avgProbability >= 70">
+            Portfolio trend is elevated; enforce weekly risk reviews with cross-team owners.
+          </p>
+          <p class="action" *ngIf="metrics.avgProbability < 70">
+            Portfolio trend is moderate; keep current cadence and focus on outlier programs.
+          </p>
         </mat-card-content>
       </mat-card>
     </div>
@@ -87,6 +137,37 @@ import { MatButtonModule } from '@angular/material/button';
       color: var(--ri-on-surface-variant);
       margin: 0 0 32px 0;
       font-size: 14px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .last-updated {
+      margin: 0;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .state-card {
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .state-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .state-card.error p {
+      color: #ba1a1a;
+      margin: 0;
     }
 
     .cards-grid {
@@ -154,6 +235,118 @@ import { MatButtonModule } from '@angular/material/button';
         color: var(--ri-on-surface-variant);
       }
     }
+
+    .list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .program-name {
+      color: var(--ri-on-surface);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .risk-chip {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .risk-critical {
+      background: #ffebee;
+      color: #ba1a1a;
+    }
+
+    .risk-high {
+      background: #ffe8cc;
+      color: #f57c00;
+    }
+
+    .risk-medium {
+      background: #fff8e1;
+      color: #f9a825;
+    }
+
+    .risk-low {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .action {
+      margin: 0 0 10px 0;
+      color: var(--ri-on-surface-variant);
+      font-size: 14px;
+      line-height: 1.45;
+    }
   `],
 })
-export class DashboardComponent {}
+export class DashboardComponent implements OnInit {
+  loading = false;
+  errorMessage = '';
+  lastUpdated = '';
+
+  metrics: DashboardMetrics = {
+    openHighRisks: 0,
+    activeProjects: 0,
+    avgProbability: 0,
+    lowRiskProjects: 0,
+  };
+
+  topRisks: RiskScore[] = [];
+
+  constructor(
+    private projectsService: ProjectsService,
+    private riskService: RiskService
+  ) {}
+
+  ngOnInit(): void {
+    this.loadDashboard();
+  }
+
+  loadDashboard(): void {
+    this.loading = true;
+    this.errorMessage = '';
+
+    forkJoin({
+      projects: this.projectsService.getProjects().pipe(catchError(() => of({ projects: [], total: 0 }))),
+      risks: this.riskService.refreshRiskScores().pipe(catchError(() => of([]))),
+    })
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+        })
+      )
+      .subscribe(({ projects, risks }) => {
+        const riskScores = risks as RiskScore[];
+
+        if (!projects.projects.length && !riskScores.length) {
+          this.errorMessage = 'Dashboard data is unavailable. Verify gateway and project services are healthy.';
+          return;
+        }
+
+        const highRiskCount = riskScores.filter(score => score.band === 'HIGH' || score.band === 'CRITICAL').length;
+        const lowRiskCount = riskScores.filter(score => score.band === 'LOW').length;
+        const avgRiskScore = riskScores.length
+          ? Math.round(riskScores.reduce((sum, score) => sum + score.score, 0) / riskScores.length)
+          : 0;
+
+        this.metrics = {
+          openHighRisks: highRiskCount,
+          activeProjects: projects.total || projects.projects.length,
+          avgProbability: avgRiskScore,
+          lowRiskProjects: lowRiskCount,
+        };
+
+        this.topRisks = [...riskScores]
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        this.lastUpdated = new Date().toLocaleString();
+      });
+  }
+}
