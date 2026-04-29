@@ -63,3 +63,12 @@ After deployment, verify these in order:
 6. Dashboard static site load
 
 Then adapt the existing remote validation profile with the real Render URLs.
+
+## Post-Deploy Validation Commands
+
+After setting URLs in `go-live-readiness/profiles/staging.env`, run from repository root:
+
+1. `./scripts/validate-render-staging.sh`
+2. `cd go-live-readiness && npm run check:staging`
+
+Record outcomes in `go-live-readiness/reports/latest-readiness-evidence.md` and optionally copy a structured summary from `go-live-readiness/reports/staging-evidence-template.md`.
