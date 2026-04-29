@@ -42,3 +42,19 @@ Health endpoint outcomes:
 
 - Auth tokens from smoke output are intentionally excluded from this report.
 - `release-remote-*.md` reports are gitignored; this file is the tracked acceptance artifact.
+
+## CI Gate Evidence (Local-Only)
+
+- Timestamp: 2026-04-29T17:22:41Z
+- Commit SHA: `a46e22ba8fb00120a95404647ee102e9a970e838`
+- Workflow: Release Gate
+- Run URL: https://github.com/kunda-prasadu/AI-DELIVERY-RISK-INTELLIGENCE-SYSTEM/actions/runs/25123577394
+- Overall: PASS
+
+Job outcomes:
+- PASS Frontend Tests
+- PASS Readiness and Smoke Gate
+
+Local-first policy confirmation:
+- Cloud staging secret is removed.
+- Release gate executes only local validation jobs.
