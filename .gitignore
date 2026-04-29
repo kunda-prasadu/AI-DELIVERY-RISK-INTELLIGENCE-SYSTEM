@@ -7,3 +7,5 @@ dist/
 .local-runtime/
 .DS_Store
 *.log
+go-live-readiness/profiles/*.env
+go-live-readiness/reports/release-remote-*.md

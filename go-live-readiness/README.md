@@ -21,6 +21,29 @@ npm run smoke
 npm test
 ```
 
+For staging/production, set remote endpoint variables (see `.env.remote.example`) and run:
+
+```bash
+GATEWAY_BASE_URL=https://staging.example.com npm run smoke
+```
+
+Profile examples are available in `profiles/`:
+
+- `profiles/staging.env.example`
+- `profiles/production.env.example`
+
+You can run profile-based remote validation from repo root:
+
+```bash
+./scripts/validate-release-profile.sh staging
+```
+
+And for a full remote release validation from repository root:
+
+```bash
+GATEWAY_BASE_URL=https://staging.example.com ./scripts/validate-release-remote.sh
+```
+
 From repository root, you can also run a full release rehearsal:
 
 ```bash

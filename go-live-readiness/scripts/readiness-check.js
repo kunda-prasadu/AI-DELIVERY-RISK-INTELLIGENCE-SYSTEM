@@ -99,8 +99,18 @@ async function pingHealth(url) {
 async function runLiveChecks(catalog) {
   const services = [];
 
+  const envHealthUrlByServiceId = {
+    'identity-service': process.env.IDENTITY_HEALTH_URL,
+    'project-service': process.env.PROJECT_HEALTH_URL,
+    'observability-service': process.env.OBSERVABILITY_HEALTH_URL,
+    'metrics-normalization-service': process.env.METRICS_HEALTH_URL,
+    'api-gateway-service': process.env.GATEWAY_HEALTH_URL,
+  };
+
   for (const service of catalog) {
-    if (!service.recommendedHealthUrl) {
+    const healthUrl = envHealthUrlByServiceId[service.id] || service.recommendedHealthUrl;
+
+    if (!healthUrl) {
       services.push({
         id: service.id,
         type: service.type,
@@ -118,7 +128,7 @@ async function runLiveChecks(catalog) {
       continue;
     }
 
-    const result = await pingHealth(service.recommendedHealthUrl);
+    const result = await pingHealth(healthUrl);
     services.push({
       id: service.id,
       type: service.type,

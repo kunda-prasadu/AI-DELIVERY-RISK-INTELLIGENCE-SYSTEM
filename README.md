@@ -58,6 +58,24 @@ Run a full one-command release rehearsal (start, validate, smoke, stop, report):
 ./scripts/validate-release.sh
 ```
 
+Run remote/staging validation (no local service startup) with:
+
+```bash
+GATEWAY_BASE_URL=https://staging.example.com ./scripts/validate-release-remote.sh
+```
+
+Profile-based remote validation (recommended):
+
+```bash
+# one-time setup
+cp go-live-readiness/profiles/staging.env.example go-live-readiness/profiles/staging.env
+
+# run
+./scripts/validate-release-profile.sh staging
+```
+
+For remote health endpoint overrides used by `check:live`, see [go-live-readiness/.env.remote.example](go-live-readiness/.env.remote.example).
+
 ## Core Health Endpoints
 
 - Identity: `http://127.0.0.1:3001/health`
