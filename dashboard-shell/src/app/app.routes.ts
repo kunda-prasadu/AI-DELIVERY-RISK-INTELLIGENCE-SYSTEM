@@ -1,10 +1,5 @@
 import { Routes } from '@angular/router';
 import { LayoutComponent } from './shared/components/layout.component';
-import { DashboardComponent } from './features/dashboard/dashboard.component';
-import { ProjectsComponent } from './features/projects/projects.component';
-import { RiskComponent } from './features/risk/risk.component';
-import { EngineeringComponent } from './features/dashboard/engineering.component';
-import { ActionsComponent } from './features/dashboard/actions.component';
 
 export const routes: Routes = [
   {
@@ -12,11 +7,29 @@ export const routes: Routes = [
     component: LayoutComponent,
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
-      { path: 'dashboard', component: DashboardComponent },
-      { path: 'projects', component: ProjectsComponent },
-      { path: 'risk', component: RiskComponent },
-      { path: 'engineering', component: EngineeringComponent },
-      { path: 'actions', component: ActionsComponent },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
+      },
+      {
+        path: 'projects',
+        loadComponent: () =>
+          import('./features/projects/projects.component').then(m => m.ProjectsComponent),
+      },
+      {
+        path: 'risk',
+        loadComponent: () => import('./features/risk/risk.component').then(m => m.RiskComponent),
+      },
+      {
+        path: 'engineering',
+        loadComponent: () =>
+          import('./features/dashboard/engineering.component').then(m => m.EngineeringComponent),
+      },
+      {
+        path: 'actions',
+        loadComponent: () => import('./features/dashboard/actions.component').then(m => m.ActionsComponent),
+      },
     ],
   },
   { path: '**', redirectTo: 'dashboard' },
