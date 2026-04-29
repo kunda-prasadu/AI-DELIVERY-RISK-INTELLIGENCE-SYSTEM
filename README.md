@@ -70,6 +70,12 @@ Run only the backend services in Docker Compose:
 ./scripts/start-compose-backend-stack.sh
 ```
 
+Launch the local demo and open the local URLs automatically:
+
+```bash
+./scripts/run-local-demo.sh
+```
+
 Stop the Compose stack:
 
 ```bash
