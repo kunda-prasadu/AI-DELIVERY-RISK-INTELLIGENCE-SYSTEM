@@ -1,27 +1,27 @@
 
 @use '@angular/material' as mat;
-@import 'styles/theme';
+@use 'styles/theme' as theme;
 
 // Import fonts via CSS
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 // Custom CSS variables for RiskIntel design system
 :root {
-  --ri-primary: #{$primary};
-  --ri-primary-container: #{$primary-container};
-  --ri-on-primary: #{$on-primary};
-  --ri-secondary: #{$secondary};
-  --ri-on-secondary: #{$on-secondary};
-  --ri-error: #{$error};
-  --ri-success: #{$success};
-  --ri-warning: #{$warning};
-  --ri-surface: #{$surface};
-  --ri-surface-container: #{$surface-container};
-  --ri-on-surface: #{$on-surface};
-  --ri-on-surface-variant: #{$on-surface-variant};
-  --ri-background: #{$background};
-  --ri-outline: #{$outline};
-  --ri-outline-variant: #{$outline-variant};
+  --ri-primary: #{theme.$primary};
+  --ri-primary-container: #{theme.$primary-container};
+  --ri-on-primary: #{theme.$on-primary};
+  --ri-secondary: #{theme.$secondary};
+  --ri-on-secondary: #{theme.$on-secondary};
+  --ri-error: #{theme.$error};
+  --ri-success: #{theme.$success};
+  --ri-warning: #{theme.$warning};
+  --ri-surface: #{theme.$surface};
+  --ri-surface-container: #{theme.$surface-container};
+  --ri-on-surface: #{theme.$on-surface};
+  --ri-on-surface-variant: #{theme.$on-surface-variant};
+  --ri-background: #{theme.$background};
+  --ri-outline: #{theme.$outline};
+  --ri-outline-variant: #{theme.$outline-variant};
 }
 
 * {
@@ -90,7 +90,7 @@ app-root {
 }
 
 .badge-critical {
-  background-color: #{$severity-critical};
+  background-color: #{theme.$severity-critical};
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -99,7 +99,7 @@ app-root {
 }
 
 .badge-high {
-  background-color: #{$severity-high};
+  background-color: #{theme.$severity-high};
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -108,7 +108,7 @@ app-root {
 }
 
 .badge-medium {
-  background-color: #{$severity-medium};
+  background-color: #{theme.$severity-medium};
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
@@ -117,7 +117,7 @@ app-root {
 }
 
 .badge-low {
-  background-color: #{$severity-low};
+  background-color: #{theme.$severity-low};
   color: white;
   padding: 2px 8px;
   border-radius: 4px;
