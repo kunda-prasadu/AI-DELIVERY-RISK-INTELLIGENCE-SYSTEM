@@ -8,6 +8,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { AlertService, ProjectAlert } from '../../shared/services/alert.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
 import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
@@ -157,6 +158,31 @@ interface DashboardMetrics {
               </span>
               <button mat-stroked-button type="button" (click)="openAnomalyDetail(anomaly.projectId)">
                 View Details
+              </button>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Active Alerts</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!topAlerts.length">No threshold breaches are currently active.</p>
+          <div class="list-row" *ngFor="let alert of topAlerts">
+            <div class="anomaly-detail">
+              <span class="program-name">{{ alert.projectId }}</span>
+              <p class="anomaly-reason">
+                {{ alert.breaches[0]?.message || 'Threshold breach detected.' }}
+              </p>
+            </div>
+            <div class="anomaly-actions">
+              <span class="risk-chip" [class]="getAlertSeverityChipClass(alert)">
+                {{ alert.severity || 'NONE' }} · {{ alert.breachCount }}
+              </span>
+              <button mat-stroked-button type="button" (click)="openAnomalyDetail(alert.projectId)">
+                Investigate
               </button>
             </div>
           </div>
@@ -402,10 +428,12 @@ export class DashboardComponent implements OnInit {
 
   topRisks: RiskScore[] = [];
   topAnomalies: ProjectAnomaly[] = [];
+  topAlerts: ProjectAlert[] = [];
 
   constructor(
     private projectsService: ProjectsService,
     private riskService: RiskService,
+    private alertService: AlertService,
     private router: Router
   ) {}
 
@@ -421,13 +449,14 @@ export class DashboardComponent implements OnInit {
       projects: this.projectsService.getProjects().pipe(catchError(() => of({ projects: [], total: 0 }))),
       risks: this.riskService.refreshRiskScores().pipe(catchError(() => of([]))),
       anomalies: this.riskService.getPortfolioAnomalies().pipe(catchError(() => of([]))),
+      alerts: this.alertService.getPortfolioAlerts().pipe(catchError(() => of({ totalActive: 0, alerts: [] }))),
     })
       .pipe(
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(({ projects, risks, anomalies }) => {
+      .subscribe(({ projects, risks, anomalies, alerts }) => {
         const riskScores = risks as RiskScore[];
 
         if (!projects.projects.length && !riskScores.length) {
@@ -456,6 +485,10 @@ export class DashboardComponent implements OnInit {
           .sort((a, b) => b.anomalyScore - a.anomalyScore)
           .slice(0, 5);
 
+        this.topAlerts = [...alerts.alerts]
+          .sort((a, b) => b.breachCount - a.breachCount)
+          .slice(0, 5);
+
         this.lastUpdated = new Date().toLocaleString();
       });
   }
@@ -466,5 +499,10 @@ export class DashboardComponent implements OnInit {
 
   getTopAnomalyAction(anomaly: ProjectAnomaly): string {
     return getRecommendedActionsForAnomaly(anomaly)[0] || 'Continue monitoring and re-evaluate on next snapshot.';
+  }
+
+  getAlertSeverityChipClass(alert: ProjectAlert): string {
+    const severity = (alert.severity || 'LOW').toLowerCase();
+    return `risk-${severity}`;
   }
 }

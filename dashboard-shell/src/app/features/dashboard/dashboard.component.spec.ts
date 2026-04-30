@@ -4,15 +4,18 @@ import { of } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
+import { AlertService } from '../../shared/services/alert.service';
 
 describe('DashboardComponent', () => {
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
+  let alertServiceSpy: jasmine.SpyObj<AlertService>;
   let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
+    alertServiceSpy = jasmine.createSpyObj<AlertService>('AlertService', ['getPortfolioAlerts']);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
       'getPortfolioAnomalies',
@@ -43,6 +46,7 @@ describe('DashboardComponent', () => {
       providers: [
         { provide: ProjectsService, useValue: projectsServiceSpy },
         { provide: RiskService, useValue: riskServiceSpy },
+        { provide: AlertService, useValue: alertServiceSpy },
         { provide: Router, useValue: routerSpy },
       ],
     }).compileComponents();
@@ -88,6 +92,28 @@ describe('DashboardComponent', () => {
         },
       ] as any)
     );
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(
+      of({
+        totalActive: 1,
+        alerts: [
+          {
+            projectId: 'p1',
+            active: true,
+            severity: 'CRITICAL',
+            breachCount: 3,
+            breaches: [
+              {
+                rule: 'RISK_SCORE',
+                message: 'Risk score exceeded threshold.',
+                actual: 82,
+                threshold: 70,
+              },
+            ],
+            evaluatedAt: new Date().toISOString(),
+          },
+        ],
+      })
+    );
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -102,6 +128,8 @@ describe('DashboardComponent', () => {
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');
     expect(compiled.textContent).toContain('Anomaly Radar');
+    expect(compiled.textContent).toContain('Active Alerts');
+    expect(compiled.textContent).toContain('Risk score exceeded threshold.');
     expect(compiled.textContent).toContain('Action:');
     expect(compiled.textContent).toContain('Escalate to the delivery and engineering leads within 24 hours');
   });
@@ -110,6 +138,7 @@ describe('DashboardComponent', () => {
     projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 }));
     riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
     riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -125,6 +154,7 @@ describe('DashboardComponent', () => {
     projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p1' } as any], total: 1 }));
     riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
     riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -153,6 +183,7 @@ describe('DashboardComponent', () => {
         },
       ] as any)
     );
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -164,6 +195,11 @@ describe('DashboardComponent', () => {
   });
 
   it('should compute top anomaly action hint', () => {
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
     const fixture = TestBed.createComponent(DashboardComponent);
     const action = fixture.componentInstance.getTopAnomalyAction({
       projectId: 'p1',
