@@ -226,11 +226,20 @@ type TelemetryWindow = '1h' | '24h' | '7d';
           </ng-template>
 
           <div class="telemetry-list">
-            <div class="telemetry-row" *ngFor="let point of getTelemetryTimelinePoints()">
+            <button
+              type="button"
+              class="telemetry-row"
+              *ngFor="let point of getTelemetryTimelinePoints()"
+              [class.telemetry-row-active]="isActiveTelemetryPoint(point)"
+              [attr.aria-pressed]="isActiveTelemetryPoint(point)"
+              style="width:100%;text-align:left;cursor:pointer;font:inherit;"
+              (click)="selectTelemetryTimelinePoint(point)"
+              (focus)="setHoveredTelemetryPoint(point)"
+              (blur)="clearHoveredTelemetryPoint()">
               <span class="telemetry-time">{{ formatDateTime(point.timestamp) }}</span>
               <span class="telemetry-rate">{{ point.adoptionRate }}%</span>
               <span class="telemetry-meta">{{ point.completedCount }} completed · {{ point.inProgressCount }} in progress</span>
-            </div>
+            </button>
           </div>
         </mat-card-content>
       </mat-card>
@@ -526,6 +535,11 @@ type TelemetryWindow = '1h' | '24h' | '7d';
       padding: 8px 10px;
       background: var(--ri-surface-container);
       flex-wrap: wrap;
+    }
+
+    .telemetry-row:focus-visible,
+    .telemetry-row-active {
+      border-color: var(--ri-primary);
     }
 
     .telemetry-time {
@@ -1120,6 +1134,10 @@ export class ActionsComponent implements OnInit {
 
   setHoveredTelemetryPoint(point: AdoptionTelemetryPoint): void {
     this.hoveredTelemetryPoint = point;
+  }
+
+  selectTelemetryTimelinePoint(point: AdoptionTelemetryPoint): void {
+    this.setHoveredTelemetryPoint(point);
   }
 
   clearHoveredTelemetryPoint(): void {

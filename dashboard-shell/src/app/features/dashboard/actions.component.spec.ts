@@ -466,6 +466,35 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should let the telemetry timeline select the active point in the current view', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (60 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 20 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+      const timelinePoint = secondComponent.getTelemetryTimelinePoints()[1];
+
+      secondComponent.selectTelemetryTimelinePoint(timelinePoint);
+
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(timelinePoint.timestamp);
+      expect(secondComponent.isActiveTelemetryPoint(timelinePoint)).toBeTrue();
+
+      secondComponent.clearHoveredTelemetryPoint();
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(secondComponent.getTelemetryWindowPoints().slice(-1)[0].timestamp);
+      done();
+    }, 100);
+  });
+
   it('should build overlay polylines for adoption, completed, and in-progress trend series', (done) => {
     const now = Date.now();
     const seed = [
