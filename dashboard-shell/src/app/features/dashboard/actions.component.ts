@@ -180,6 +180,7 @@ interface TelemetryNavigatorPreferences {
             <span><strong>Pan:</strong> ← / →</span>
             <span><strong>Jump:</strong> J / K</span>
             <span><strong>Live:</strong> L</span>
+            <span><strong>Presets:</strong> 1 Focus / 2 Explore / 0 Reset</span>
             <span><strong>Close:</strong> Esc</span>
           </div>
 
@@ -1633,6 +1634,24 @@ export class ActionsComponent implements OnInit {
 
     if (key === 'l' && this.canRecenterTelemetryToLiveEdge()) {
       this.recenterTelemetryToLiveEdge();
+      event.preventDefault();
+      return;
+    }
+
+    if (key === '1') {
+      this.applyTelemetryNavigatorPreset('focus');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === '2') {
+      this.applyTelemetryNavigatorPreset('explore');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === '0') {
+      this.resetTelemetryNavigatorPreferences();
       event.preventDefault();
     }
   }

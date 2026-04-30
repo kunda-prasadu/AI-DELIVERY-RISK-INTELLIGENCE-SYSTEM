@@ -1539,6 +1539,30 @@ describe('ActionsComponent', () => {
       expect(secondComponent.canRecenterTelemetryToLiveEdge()).toBeFalse();
       expect(livePreventDefaultSpy).toHaveBeenCalled();
 
+      const focusPresetEvent = new KeyboardEvent('keydown', { key: '1' });
+      const focusPresetPreventDefaultSpy = spyOn(focusPresetEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(focusPresetEvent);
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('focus');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(5);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(60);
+      expect(focusPresetPreventDefaultSpy).toHaveBeenCalled();
+
+      const explorePresetEvent = new KeyboardEvent('keydown', { key: '2' });
+      const explorePresetPreventDefaultSpy = spyOn(explorePresetEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(explorePresetEvent);
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('explore');
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeTrue();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('oldest');
+      expect(explorePresetPreventDefaultSpy).toHaveBeenCalled();
+
+      const resetPresetEvent = new KeyboardEvent('keydown', { key: '0' });
+      const resetPresetPreventDefaultSpy = spyOn(resetPresetEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(resetPresetEvent);
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('custom');
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('newest');
+      expect(resetPresetPreventDefaultSpy).toHaveBeenCalled();
+
       const typingContextEvent = {
         key: 'ArrowLeft',
         target: document.createElement('input'),
