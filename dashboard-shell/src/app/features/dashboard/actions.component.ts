@@ -1018,8 +1018,13 @@ export class ActionsComponent implements OnInit {
       (point) => point.timestamp >= range.start && point.timestamp <= range.end
     );
 
-    if (filtered.length) {
+    if (filtered.length >= 2) {
       return filtered;
+    }
+
+    const contextualPoints = this.getTelemetryContextPoints(range.start, range.end, filtered);
+    if (contextualPoints.length >= 2) {
+      return contextualPoints;
     }
 
     const closestPoint = [...this.adoptionTelemetry]
@@ -1161,6 +1166,26 @@ export class ActionsComponent implements OnInit {
       start,
       end,
     };
+  }
+
+  private getTelemetryContextPoints(
+    start: number,
+    end: number,
+    inRangePoints: AdoptionTelemetryPoint[]
+  ): AdoptionTelemetryPoint[] {
+    const points = [...inRangePoints];
+    const before = [...this.adoptionTelemetry].reverse().find((point) => point.timestamp < start);
+    const after = this.adoptionTelemetry.find((point) => point.timestamp > end);
+
+    if (before && !points.some((point) => point.timestamp === before.timestamp)) {
+      points.unshift(before);
+    }
+
+    if (after && !points.some((point) => point.timestamp === after.timestamp)) {
+      points.push(after);
+    }
+
+    return points;
   }
 
   private getTelemetryViewDurationMs(): number {

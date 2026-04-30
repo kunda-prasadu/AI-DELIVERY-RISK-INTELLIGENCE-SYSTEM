@@ -546,7 +546,7 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
-  it('should pan the telemetry view to older data and back to the live edge', (done) => {
+  it('should preserve chart continuity when panning into sparse telemetry ranges', (done) => {
     const now = Date.now();
     const seed = [
       { timestamp: now - (50 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
@@ -571,9 +571,11 @@ describe('ActionsComponent', () => {
       expect(secondComponent.canPanTelemetryOlder()).toBeTrue();
 
       secondComponent.panTelemetryWindow('older');
-      const olderLatest = secondComponent.getTelemetryWindowPoints()[secondComponent.getTelemetryWindowPoints().length - 1];
+        const olderPoints = secondComponent.getTelemetryWindowPoints();
+        const olderLatest = olderPoints[olderPoints.length - 1];
 
       expect(secondComponent.telemetryPanOffsetSteps).toBe(1);
+        expect(olderPoints.length).toBeGreaterThanOrEqual(2);
       expect(olderLatest.timestamp).toBeLessThan(liveEdgeLatest.timestamp);
       expect(secondComponent.canPanTelemetryNewer()).toBeTrue();
 
