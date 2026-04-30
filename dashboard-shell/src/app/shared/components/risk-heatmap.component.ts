@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatGridListModule } from '@angular/material/grid-list';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -187,13 +187,18 @@ import { RiskService, RiskScore } from '../services/risk.service';
   `],
 })
 export class RiskHeatmapComponent implements OnInit {
-  riskScores: RiskScore[] = [];
+  @Input() riskScores: RiskScore[] = [];
 
   constructor(private riskService: RiskService) {}
 
   ngOnInit(): void {
+    if (this.riskScores.length) {
+      this.riskScores = [...this.riskScores].sort((a, b) => b.score - a.score);
+      return;
+    }
+
     this.riskService.getRiskScores().subscribe(scores => {
-      this.riskScores = scores.sort((a, b) => b.score - a.score); // Sort by risk (descending)
+      this.riskScores = scores.sort((a, b) => b.score - a.score);
     });
   }
 

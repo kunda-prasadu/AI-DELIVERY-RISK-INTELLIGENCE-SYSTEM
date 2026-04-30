@@ -7,6 +7,8 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskScore, RiskService } from '../../shared/services/risk.service';
+import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
+import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
 
 interface DashboardMetrics {
   openHighRisks: number;
@@ -18,7 +20,14 @@ interface DashboardMetrics {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    RiskHeatmapComponent,
+    RiskScoreCardComponent,
+  ],
   template: `
     <div class="dashboard-container">
       <h1 class="text-display-lg">Delivery Dashboard</h1>
@@ -88,6 +97,28 @@ interface DashboardMetrics {
           </mat-card-content>
         </mat-card>
       </div>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Portfolio Risk Heatmap</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!topRisks.length">No portfolio risk data is available for the heatmap yet.</p>
+          <app-risk-heatmap *ngIf="topRisks.length" [riskScores]="topRisks"></app-risk-heatmap>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Risk Scorecards</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!topRisks.length">No scorecards are available until risk scores load.</p>
+          <div class="scorecards-grid" *ngIf="topRisks.length">
+            <app-risk-score-card *ngFor="let risk of topRisks.slice(0, 3)" [riskScore]="risk"></app-risk-score-card>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <mat-card class="section-card" *ngIf="!loading && !errorMessage">
         <mat-card-header>
@@ -234,6 +265,12 @@ interface DashboardMetrics {
         padding: 20px;
         color: var(--ri-on-surface-variant);
       }
+    }
+
+    .scorecards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
     }
 
     .list-row {

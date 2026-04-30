@@ -10,7 +10,29 @@ describe('DashboardComponent', () => {
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
-    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['refreshRiskScores']);
+    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
+      'refreshRiskScores',
+      'getBandColor',
+      'getBandBackgroundColor',
+    ]);
+    riskServiceSpy.getBandColor.and.callFake((band: string) => {
+      const colors: Record<string, string> = {
+        LOW: '#2e7d32',
+        MEDIUM: '#f9a825',
+        HIGH: '#f57c00',
+        CRITICAL: '#ba1a1a',
+      };
+      return colors[band] || '#565e74';
+    });
+    riskServiceSpy.getBandBackgroundColor.and.callFake((band: string) => {
+      const colors: Record<string, string> = {
+        LOW: '#e8f5e9',
+        MEDIUM: '#fff8e1',
+        HIGH: '#ffe8cc',
+        CRITICAL: '#ffebee',
+      };
+      return colors[band] || '#f0ecf9';
+    });
 
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
@@ -56,6 +78,8 @@ describe('DashboardComponent', () => {
     expect(component.metrics.openHighRisks).toBe(1);
     expect(component.metrics.avgProbability).toBe(56);
     expect(compiled.textContent).toContain('Project One');
+    expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
+    expect(compiled.textContent).toContain('Risk Scorecards');
   });
 
   it('should show unavailable state when both projects and risks are empty', () => {
