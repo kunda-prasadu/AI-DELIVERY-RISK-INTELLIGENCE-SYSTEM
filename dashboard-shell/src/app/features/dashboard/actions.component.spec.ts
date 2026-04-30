@@ -33,6 +33,7 @@ describe('ActionsComponent', () => {
 
   beforeEach(async () => {
     localStorage.removeItem('ri-action-status-v1');
+    localStorage.removeItem('ri-action-telemetry-v1');
 
     mockRiskService = {
       getPortfolioAnomalies: jasmine.createSpy('getPortfolioAnomalies').and.returnValue(of([mockAnomaly])),
@@ -259,6 +260,79 @@ describe('ActionsComponent', () => {
       const adopted = component.inProgressCount + component.completedCount;
       const expectedRate = Math.round((adopted / actions.length) * 100);
       expect(component.adoptionRate).toBe(expectedRate);
+      done();
+    }, 100);
+  });
+
+  it('should persist telemetry snapshots when status distribution changes', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      const baseline = component.adoptionTelemetry.length;
+      component.markInProgress(component.allActions[0]);
+
+      const telemetryRaw = localStorage.getItem('ri-action-telemetry-v1');
+      expect(telemetryRaw).toBeTruthy();
+
+      const telemetry = JSON.parse(telemetryRaw || '[]');
+      expect(Array.isArray(telemetry)).toBeTrue();
+      expect(component.adoptionTelemetry.length).toBeGreaterThanOrEqual(baseline);
+      expect(component.adoptionTelemetry[component.adoptionTelemetry.length - 1].adoptionRate).toBe(component.adoptionRate);
+      done();
+    }, 100);
+  });
+
+  it('should restore telemetry from storage on component init', (done) => {
+    const seed = [
+      {
+        timestamp: Date.now() - 3600000,
+        openCount: 2,
+        inProgressCount: 1,
+        completedCount: 1,
+        adoptionRate: 50,
+      },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.adoptionTelemetry.length).toBeGreaterThan(0);
+      expect(secondComponent.adoptionTelemetry[0].adoptionRate).toBe(50);
+      done();
+    }, 100);
+  });
+
+  it('should compute adoption 24h delta from telemetry history', (done) => {
+    const now = Date.now();
+    const seed = [
+      {
+        timestamp: now - (26 * 60 * 60 * 1000),
+        openCount: 4,
+        inProgressCount: 0,
+        completedCount: 0,
+        adoptionRate: 0,
+      },
+      {
+        timestamp: now - (2 * 60 * 60 * 1000),
+        openCount: 2,
+        inProgressCount: 1,
+        completedCount: 1,
+        adoptionRate: 50,
+      },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.adoptionDelta24h).toBe(-50);
       done();
     }, 100);
   });

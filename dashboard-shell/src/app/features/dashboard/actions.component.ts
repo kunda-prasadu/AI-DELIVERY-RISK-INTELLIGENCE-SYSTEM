@@ -25,6 +25,14 @@ interface RecommendedAction {
   status: 'open' | 'in_progress' | 'completed';
 }
 
+interface AdoptionTelemetryPoint {
+  timestamp: number;
+  openCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  adoptionRate: number;
+}
+
 @Component({
   selector: 'app-actions',
   standalone: true,
@@ -82,6 +90,26 @@ interface RecommendedAction {
           <div class="state-content">
             <p>{{ errorMessage }}</p>
             <button mat-flat-button type="button" (click)="loadActions()">Retry</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && adoptionTelemetry.length">
+        <mat-card-header>
+          <mat-card-title>Adoption Trend History</mat-card-title>
+          <mat-card-subtitle>
+            24h change: <strong [class.positive]="adoptionDelta24h >= 0" [class.negative]="adoptionDelta24h < 0">
+              {{ adoptionDelta24h >= 0 ? '+' : '' }}{{ adoptionDelta24h }}%
+            </strong>
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="telemetry-list">
+            <div class="telemetry-row" *ngFor="let point of adoptionTelemetry.slice(-7).reverse()">
+              <span class="telemetry-time">{{ formatDateTime(point.timestamp) }}</span>
+              <span class="telemetry-rate">{{ point.adoptionRate }}%</span>
+              <span class="telemetry-meta">{{ point.completedCount }} completed · {{ point.inProgressCount }} in progress</span>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -266,6 +294,54 @@ interface RecommendedAction {
       margin-bottom: 24px;
     }
 
+    .section-card {
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+
+    .positive {
+      color: #2e7d32;
+    }
+
+    .negative {
+      color: #ba1a1a;
+    }
+
+    .telemetry-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .telemetry-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: var(--ri-surface-container);
+      flex-wrap: wrap;
+    }
+
+    .telemetry-time {
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+      min-width: 140px;
+    }
+
+    .telemetry-rate {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ri-primary);
+    }
+
+    .telemetry-meta {
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
     .state-content {
       display: flex;
       flex-direction: column;
@@ -408,6 +484,8 @@ interface RecommendedAction {
 })
 export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
+  private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
+  private readonly maxTelemetryPoints = 60;
 
   loading = true;
   errorMessage = '';
@@ -419,6 +497,8 @@ export class ActionsComponent implements OnInit {
   inProgressCount = 0;
   completedCount = 0;
   adoptionRate = 0;
+  adoptionDelta24h = 0;
+  adoptionTelemetry: AdoptionTelemetryPoint[] = [];
 
   constructor(
     private riskService: RiskService,
@@ -426,6 +506,8 @@ export class ActionsComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.adoptionTelemetry = this.readTelemetry();
+    this.updateAdoptionDelta24h();
     this.loadActions();
   }
 
@@ -556,6 +638,9 @@ export class ActionsComponent implements OnInit {
     ).length;
     this.completedCount = this.filteredActions('completed').length;
     this.adoptionRate = total ? Math.round(((this.inProgressCount + this.completedCount) / total) * 100) : 0;
+
+    this.captureTelemetrySnapshot();
+    this.updateAdoptionDelta24h();
   }
 
   private readStoredStatuses(): Map<string, 'open' | 'in_progress' | 'completed'> {
@@ -597,6 +682,82 @@ export class ActionsComponent implements OnInit {
     }
   }
 
+  private readTelemetry(): AdoptionTelemetryPoint[] {
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+
+    try {
+      const raw = localStorage.getItem(this.telemetryStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw) as AdoptionTelemetryPoint[];
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return parsed
+        .filter((point) => typeof point.timestamp === 'number' && typeof point.adoptionRate === 'number')
+        .slice(-this.maxTelemetryPoints);
+    } catch {
+      return [];
+    }
+  }
+
+  private persistTelemetry(): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.adoptionTelemetry.slice(-this.maxTelemetryPoints)));
+    } catch {
+      // Ignore storage failures and continue rendering without telemetry persistence.
+    }
+  }
+
+  private captureTelemetrySnapshot(): void {
+    if (!this.allActions.length) {
+      return;
+    }
+
+    const currentPoint: AdoptionTelemetryPoint = {
+      timestamp: Date.now(),
+      openCount: this.totalActions,
+      inProgressCount: this.inProgressCount,
+      completedCount: this.completedCount,
+      adoptionRate: this.adoptionRate,
+    };
+
+    const previousPoint = this.adoptionTelemetry[this.adoptionTelemetry.length - 1];
+    if (
+      previousPoint
+      && previousPoint.openCount === currentPoint.openCount
+      && previousPoint.inProgressCount === currentPoint.inProgressCount
+      && previousPoint.completedCount === currentPoint.completedCount
+      && previousPoint.adoptionRate === currentPoint.adoptionRate
+    ) {
+      return;
+    }
+
+    this.adoptionTelemetry = [...this.adoptionTelemetry.slice(-(this.maxTelemetryPoints - 1)), currentPoint];
+    this.persistTelemetry();
+  }
+
+  private updateAdoptionDelta24h(): void {
+    if (!this.adoptionTelemetry.length) {
+      this.adoptionDelta24h = 0;
+      return;
+    }
+
+    const latest = this.adoptionTelemetry[this.adoptionTelemetry.length - 1];
+    const threshold = latest.timestamp - 24 * 60 * 60 * 1000;
+    const baseline = this.adoptionTelemetry.find((point) => point.timestamp >= threshold) || this.adoptionTelemetry[0];
+    this.adoptionDelta24h = latest.adoptionRate - baseline.adoptionRate;
+  }
+
   formatDate(timestamp: number): string {
     const now = Date.now();
     const diffMs = now - timestamp;
@@ -610,5 +771,9 @@ export class ActionsComponent implements OnInit {
     if (diffDays < 7) return `${diffDays}d ago`;
 
     return new Date(timestamp).toLocaleDateString();
+  }
+
+  formatDateTime(timestamp: number): string {
+    return new Date(timestamp).toLocaleString();
   }
 }
