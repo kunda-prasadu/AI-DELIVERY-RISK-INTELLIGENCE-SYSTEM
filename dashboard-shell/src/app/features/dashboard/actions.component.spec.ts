@@ -571,19 +571,23 @@ describe('ActionsComponent', () => {
       expect(secondComponent.canPanTelemetryOlder()).toBeTrue();
 
       secondComponent.panTelemetryWindow('older');
-        const olderPoints = secondComponent.getTelemetryWindowPoints();
-        const olderLatest = olderPoints[olderPoints.length - 1];
+      const olderPoints = secondComponent.getTelemetryWindowPoints();
+      const olderLatest = olderPoints[olderPoints.length - 1];
+      const olderTimelineLatest = secondComponent.getTelemetryTimelinePoints()[0];
 
       expect(secondComponent.telemetryPanOffsetSteps).toBe(1);
-        expect(olderPoints.length).toBeGreaterThanOrEqual(2);
+      expect(olderPoints.length).toBeGreaterThanOrEqual(2);
       expect(olderLatest.timestamp).toBeLessThan(liveEdgeLatest.timestamp);
+      expect(olderTimelineLatest.timestamp).toBe(olderLatest.timestamp);
       expect(secondComponent.canPanTelemetryNewer()).toBeTrue();
 
       secondComponent.panTelemetryWindow('newer');
       const resetLatest = secondComponent.getTelemetryWindowPoints()[secondComponent.getTelemetryWindowPoints().length - 1];
+      const resetTimelineLatest = secondComponent.getTelemetryTimelinePoints()[0];
 
       expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
       expect(resetLatest.timestamp).toBe(liveEdgeLatest.timestamp);
+      expect(resetTimelineLatest.timestamp).toBe(liveEdgeLatest.timestamp);
       done();
     }, 100);
   });

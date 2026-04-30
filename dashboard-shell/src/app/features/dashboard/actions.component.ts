@@ -226,7 +226,7 @@ type TelemetryWindow = '1h' | '24h' | '7d';
           </ng-template>
 
           <div class="telemetry-list">
-            <div class="telemetry-row" *ngFor="let point of adoptionTelemetry.slice(-7).reverse()">
+            <div class="telemetry-row" *ngFor="let point of getTelemetryTimelinePoints()">
               <span class="telemetry-time">{{ formatDateTime(point.timestamp) }}</span>
               <span class="telemetry-rate">{{ point.adoptionRate }}%</span>
               <span class="telemetry-meta">{{ point.completedCount }} completed · {{ point.inProgressCount }} in progress</span>
@@ -1055,6 +1055,10 @@ export class ActionsComponent implements OnInit {
 
   getTelemetryChartPoints(): TelemetryChartPoint[] {
     return this.buildTelemetryChartPoints(this.getTelemetryWindowPoints(), 'adoption');
+  }
+
+  getTelemetryTimelinePoints(): AdoptionTelemetryPoint[] {
+    return [...this.getTelemetryWindowPoints()].slice(-7).reverse();
   }
 
   buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
