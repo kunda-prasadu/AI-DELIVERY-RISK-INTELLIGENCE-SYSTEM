@@ -90,6 +90,13 @@ import { ProjectsService } from '../../shared/services/projects.service';
             </div>
           </div>
 
+          <div class="actions-section">
+            <h3>Recommended Next Actions</h3>
+            <ul>
+              <li *ngFor="let action of getRecommendedActions()">{{ action }}</li>
+            </ul>
+          </div>
+
           <div class="reasons-section">
             <h3>Primary Anomaly Reasons</h3>
             <ul>
@@ -234,6 +241,32 @@ import { ProjectsService } from '../../shared/services/projects.service';
       background: #2e7d32;
     }
 
+    .actions-section {
+      margin-top: 18px;
+      padding: 12px;
+      border: 1px solid #d8e2ff;
+      border-radius: 8px;
+      background: #f4f7ff;
+    }
+
+    .actions-section h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1f3a7a;
+    }
+
+    .actions-section ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #244177;
+    }
+
+    .actions-section li {
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
     .reasons-section {
       margin-top: 18px;
     }
@@ -322,5 +355,33 @@ export class RiskAnomalyDetailComponent implements OnInit {
       { key: 'medium', label: 'Medium', count: counts.medium, percent: Math.round((counts.medium / total) * 100) },
       { key: 'low', label: 'Low', count: counts.low, percent: Math.round((counts.low / total) * 100) },
     ];
+  }
+
+  getRecommendedActions(): string[] {
+    if (!this.anomaly) {
+      return [];
+    }
+
+    const actions: string[] = [];
+
+    if (this.anomaly.severity === 'CRITICAL' || this.anomaly.severity === 'HIGH') {
+      actions.push('Escalate to the delivery and engineering leads within 24 hours and assign a single remediation owner.');
+    } else {
+      actions.push('Track in the weekly risk review and assign an owner to validate corrective actions.');
+    }
+
+    if (this.anomaly.trend === 'regression') {
+      actions.push('Freeze non-essential scope changes until anomaly trend stabilizes for at least one reporting cycle.');
+    } else if (this.anomaly.trend === 'watch') {
+      actions.push('Increase monitoring cadence and verify signal quality before the next release checkpoint.');
+    } else if (this.anomaly.trend === 'improving') {
+      actions.push('Preserve current mitigation plan and confirm that improvements hold across the next sprint.');
+    }
+
+    if (this.anomaly.metrics.severityCounts.critical > 0) {
+      actions.push('Run a root-cause review for critical events and capture preventive controls in the action tracker.');
+    }
+
+    return actions;
   }
 }
