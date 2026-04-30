@@ -671,6 +671,46 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should recenter to the live edge after navigating into older telemetry history', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 50 }, (_, index) => ({
+      timestamp: now - ((49 - index) * 30 * 60 * 1000),
+      openCount: Math.max(50 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(5 + (index * 2), 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const liveLatest = secondComponent.getTelemetryWindowPoints().slice(-1)[0];
+      const olderPoint = secondComponent.getTelemetryNavigatorPoints()[2];
+      expect(olderPoint).toBeTruthy();
+
+      secondComponent.focusTelemetryPoint(olderPoint);
+      expect(secondComponent.canRecenterTelemetryToLiveEdge()).toBeTrue();
+
+      secondComponent.recenterTelemetryToLiveEdge();
+
+      const recenteredLatest = secondComponent.getTelemetryWindowPoints().slice(-1)[0];
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+      expect(secondComponent.canPanTelemetryNewer()).toBeFalse();
+      expect(secondComponent.canRecenterTelemetryToLiveEdge()).toBeFalse();
+      expect(recenteredLatest.timestamp).toBe(liveLatest.timestamp);
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(liveLatest.timestamp);
+      done();
+    }, 100);
+  });
+
   it('should derive per-series rates for the active telemetry point', (done) => {
     const now = Date.now();
     const seed = [

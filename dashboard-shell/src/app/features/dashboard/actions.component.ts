@@ -248,6 +248,7 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
             <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
               <div style="display:flex;gap:8px;">
+                <button mat-stroked-button type="button" (click)="recenterTelemetryToLiveEdge()" [disabled]="!canRecenterTelemetryToLiveEdge()">Back To Live</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorContinuousMode()">Continuous {{ telemetryNavigatorContinuousMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
@@ -1086,6 +1087,17 @@ export class ActionsComponent implements OnInit {
   }
 
   canPanTelemetryNewer(): boolean {
+    return this.telemetryPanOffsetSteps > 0;
+  }
+
+  recenterTelemetryToLiveEdge(): void {
+    this.telemetryPanOffsetSteps = 0;
+    this.telemetryNavigatorOffset = 0;
+    this.syncActiveTelemetryPoint();
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  canRecenterTelemetryToLiveEdge(): boolean {
     return this.telemetryPanOffsetSteps > 0;
   }
 
