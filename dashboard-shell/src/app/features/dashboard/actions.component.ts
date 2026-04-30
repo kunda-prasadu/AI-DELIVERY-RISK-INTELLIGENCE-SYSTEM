@@ -762,6 +762,7 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
 export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
   private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
+  private readonly telemetryPinnedStorageKey = 'ri-action-telemetry-pins-v1';
   private readonly maxTelemetryPoints = 180;
   private readonly denseRecentTelemetryPoints = 60;
   private readonly historicalTelemetryStride = 3;
@@ -806,6 +807,8 @@ export class ActionsComponent implements OnInit {
 
   ngOnInit(): void {
     this.adoptionTelemetry = this.readTelemetry();
+    this.telemetryNavigatorPinnedTimestamps = this.readPinnedTelemetryTimestamps();
+    this.prunePinnedTelemetryTimestamps();
     this.updateAdoptionDelta24h();
     this.syncActiveTelemetryPoint();
     this.loadActions();
@@ -1007,6 +1010,28 @@ export class ActionsComponent implements OnInit {
     }
   }
 
+  private readPinnedTelemetryTimestamps(): number[] {
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
+
+    try {
+      const raw = localStorage.getItem(this.telemetryPinnedStorageKey);
+      if (!raw) {
+        return [];
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        return [];
+      }
+
+      return Array.from(new Set(parsed.filter((value) => typeof value === 'number')));
+    } catch {
+      return [];
+    }
+  }
+
   private persistTelemetry(): void {
     if (typeof localStorage === 'undefined') {
       return;
@@ -1016,6 +1041,27 @@ export class ActionsComponent implements OnInit {
       localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.compactTelemetry(this.adoptionTelemetry)));
     } catch {
       // Ignore storage failures and continue rendering without telemetry persistence.
+    }
+  }
+
+  private persistPinnedTelemetryTimestamps(): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    try {
+      localStorage.setItem(this.telemetryPinnedStorageKey, JSON.stringify(this.telemetryNavigatorPinnedTimestamps));
+    } catch {
+      // Ignore storage failures to keep telemetry controls operational.
+    }
+  }
+
+  private prunePinnedTelemetryTimestamps(): void {
+    const validTimestamps = new Set(this.adoptionTelemetry.map((point) => point.timestamp));
+    const pruned = this.telemetryNavigatorPinnedTimestamps.filter((timestamp) => validTimestamps.has(timestamp));
+    if (pruned.length !== this.telemetryNavigatorPinnedTimestamps.length) {
+      this.telemetryNavigatorPinnedTimestamps = pruned;
+      this.persistPinnedTelemetryTimestamps();
     }
   }
 
@@ -1044,6 +1090,7 @@ export class ActionsComponent implements OnInit {
     }
 
     this.adoptionTelemetry = this.compactTelemetry([...this.adoptionTelemetry, currentPoint]);
+    this.prunePinnedTelemetryTimestamps();
     this.persistTelemetry();
   }
 
@@ -1142,6 +1189,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorPinnedTimestamps = [...this.telemetryNavigatorPinnedTimestamps, point.timestamp];
     }
 
+    this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
   }

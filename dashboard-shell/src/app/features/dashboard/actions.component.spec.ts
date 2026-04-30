@@ -34,6 +34,7 @@ describe('ActionsComponent', () => {
   beforeEach(async () => {
     localStorage.removeItem('ri-action-status-v1');
     localStorage.removeItem('ri-action-telemetry-v1');
+    localStorage.removeItem('ri-action-telemetry-pins-v1');
 
     mockRiskService = {
       getPortfolioAnomalies: jasmine.createSpy('getPortfolioAnomalies').and.returnValue(of([mockAnomaly])),
@@ -976,6 +977,48 @@ describe('ActionsComponent', () => {
       const afterUnpin = secondComponent.getTelemetryNavigatorPoints();
       expect(afterUnpin.some((point) => point.timestamp === candidate!.timestamp)).toBeFalse();
       done();
+    }, 100);
+  });
+
+  it('should persist pinned telemetry snapshots across component recreation and prune stale pins', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 20 }, (_, index) => ({
+      timestamp: now - ((19 - index) * 30 * 60 * 1000),
+      openCount: Math.max(20 - index, 0),
+      inProgressCount: index % 3,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    const staleTimestamp = now - (999 * 30 * 60 * 1000);
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-pins-v1', JSON.stringify([seed[5].timestamp, staleTimestamp]));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps).toEqual([seed[5].timestamp]);
+
+      const pinnedPoint = secondComponent.adoptionTelemetry.find((point) => point.timestamp === seed[5].timestamp);
+      expect(pinnedPoint).toBeTruthy();
+      expect(secondComponent.isTelemetryNavigatorPinned(pinnedPoint!)).toBeTrue();
+
+      secondComponent.toggleTelemetryNavigatorPin(pinnedPoint!);
+      expect(JSON.parse(localStorage.getItem('ri-action-telemetry-pins-v1') || '[]')).toEqual([]);
+
+      secondComponent.toggleTelemetryNavigatorPin(pinnedPoint!);
+      expect(JSON.parse(localStorage.getItem('ri-action-telemetry-pins-v1') || '[]')).toEqual([seed[5].timestamp]);
+
+      const thirdFixture = TestBed.createComponent(ActionsComponent);
+      const thirdComponent = thirdFixture.componentInstance;
+      thirdFixture.detectChanges();
+
+      setTimeout(() => {
+        expect(thirdComponent.telemetryNavigatorPinnedTimestamps).toEqual([seed[5].timestamp]);
+        done();
+      }, 100);
     }, 100);
   });
 
