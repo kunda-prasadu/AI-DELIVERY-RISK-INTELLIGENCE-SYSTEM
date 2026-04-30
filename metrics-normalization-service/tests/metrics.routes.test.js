@@ -235,4 +235,55 @@ describe('metrics.routes', () => {
     expect(res.body.snapshots[0]).toHaveProperty('riskScore');
     expect(res.body.snapshots[0]).toHaveProperty('band');
   });
+
+  test('GET /metrics/projects/:projectId/alerts returns 404 when project not found', async () => {
+    const res = await request(app).get('/metrics/projects/ghost/alerts');
+    expect(res.status).toBe(404);
+  });
+
+  test('GET /metrics/projects/:projectId/alerts returns active alert when critical threshold breached', async () => {
+    for (let i = 0; i < 4; i++) {
+      aggregator.ingest({
+        source: 'qa',
+        eventType: 'test_failure',
+        projectId: 'p-alert',
+        timestamp: `2026-04-29T10:0${i}:00.000Z`,
+        severity: 'critical',
+      });
+    }
+
+    const res = await request(app).get('/metrics/projects/p-alert/alerts');
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe('p-alert');
+    expect(res.body.active).toBe(true);
+    expect(res.body.breaches.some((b) => b.rule === 'CRITICAL_EVENT_COUNT')).toBe(true);
+  });
+
+  test('GET /metrics/alerts returns portfolio active alerts', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-no-alert',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'low',
+    });
+    for (let i = 0; i < 5; i++) {
+      aggregator.ingest({
+        source: 'qa',
+        eventType: 'test_failure',
+        projectId: 'p-breached',
+        timestamp: `2026-04-29T10:0${i}:00.000Z`,
+        severity: 'critical',
+      });
+    }
+
+    const res = await request(app).get('/metrics/alerts');
+    expect(res.status).toBe(200);
+    expect(typeof res.body.totalActive).toBe('number');
+    expect(Array.isArray(res.body.alerts)).toBe(true);
+    const breached = res.body.alerts.find((a) => a.projectId === 'p-breached');
+    expect(breached).toBeDefined();
+    expect(breached.active).toBe(true);
+    expect(res.body.alerts.find((a) => a.projectId === 'p-no-alert')).toBeUndefined();
+  });
 });

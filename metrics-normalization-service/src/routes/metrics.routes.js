@@ -7,6 +7,7 @@ const orchestrator = require('../models/pipeline.orchestrator');
 const { analyzeProjectTrend } = require('../models/trend.analyzer');
 const { classifyProjectAnomaly, classifyPortfolioAnomalies } = require('../models/anomaly.classifier');
 const { buildRiskTrend } = require('../models/risk.trend.calculator');
+const { evaluateProjectAlerts, evaluatePortfolioAlerts } = require('../models/alert.threshold.engine');
 
 const router = express.Router();
 
@@ -51,6 +52,14 @@ router.get('/projects/:projectId/risk-trend', (req, res) => {
   return res.status(200).json(buildRiskTrend(req.params.projectId, history));
 });
 
+router.get('/projects/:projectId/alerts', (req, res) => {
+  const metrics = aggregator.getProjectMetrics(req.params.projectId);
+  if (!metrics) return res.status(404).json({ error: 'Project metrics not found' });
+  const history = orchestrator.getSnapshotHistory(req.params.projectId);
+  const trend = history.length ? buildRiskTrend(req.params.projectId, history) : null;
+  return res.status(200).json(evaluateProjectAlerts(metrics, trend));
+});
+
 router.get('/projects', (_req, res) => {
   res.status(200).json(aggregator.listProjectMetrics());
 });
@@ -64,6 +73,21 @@ router.get('/anomalies', (_req, res) => {
   return res.status(200).json({
     totalProjects: anomalies.length,
     anomalies,
+  });
+});
+
+router.get('/alerts', (_req, res) => {
+  const allMetrics = aggregator.listProjectMetrics();
+  const alerts = evaluatePortfolioAlerts(
+    allMetrics,
+    (projectId) => {
+      const history = orchestrator.getSnapshotHistory(projectId);
+      return history.length ? buildRiskTrend(projectId, history) : null;
+    }
+  );
+  return res.status(200).json({
+    totalActive: alerts.length,
+    alerts,
   });
 });
 
