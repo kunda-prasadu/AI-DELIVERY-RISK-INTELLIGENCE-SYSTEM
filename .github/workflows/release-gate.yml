@@ -37,10 +37,60 @@ jobs:
         run: npm run test -- --watch=false --browsers=ChromeHeadless
         working-directory: dashboard-shell
 
+  security-scan-gate:
+    name: Security Scan Gate
+    runs-on: ubuntu-latest
+    needs: frontend-tests
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run npm audit across services
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          services=(
+            "dashboard-shell"
+            "api-gateway-service"
+            "connector-framework"
+            "identity-service"
+            "metrics-normalization-service"
+            "observability-service"
+            "project-service"
+            "rag-retrieval-service"
+            "release-test-automation"
+            "go-live-readiness"
+          )
+
+          for service in "${services[@]}"; do
+            if [[ -f "$service/package.json" ]]; then
+              echo "::group::Security audit for $service"
+              pushd "$service" >/dev/null
+
+              if [[ -f package-lock.json ]]; then
+                npm ci --ignore-scripts
+                npm audit --audit-level=high --omit=dev
+              else
+                npm install --package-lock-only --ignore-scripts
+                npm audit --audit-level=high --omit=dev
+              fi
+
+              popd >/dev/null
+              echo "::endgroup::"
+            fi
+          done
+
   readiness-gate:
     name: Readiness and Smoke Gate
     runs-on: ubuntu-latest
-    needs: frontend-tests
+    needs: [frontend-tests, security-scan-gate]
 
     steps:
       - name: Checkout
