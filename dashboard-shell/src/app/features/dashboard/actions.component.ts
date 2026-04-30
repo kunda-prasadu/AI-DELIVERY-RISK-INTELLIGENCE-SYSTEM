@@ -266,7 +266,8 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 style="flex:0 0 auto;"
                 [class.window-active]="isActiveTelemetryPoint(point)"
                 (click)="focusTelemetryPoint(point)">
-                {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}%
+                {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}% ·
+                <span [style.color]="getTelemetryNavigatorDeltaColor(point)">Δ {{ formatTelemetryNavigatorDelta(point) }}</span>
               </button>
             </div>
           </div>
@@ -1250,6 +1251,34 @@ export class ActionsComponent implements OnInit {
     }
 
     return point.adoptionRate;
+  }
+
+  getTelemetryNavigatorDelta(point: AdoptionTelemetryPoint): number {
+    const index = this.adoptionTelemetry.findIndex((candidate) => candidate.timestamp === point.timestamp);
+    if (index <= 0) {
+      return 0;
+    }
+
+    const previous = this.adoptionTelemetry[index - 1];
+    return point.adoptionRate - previous.adoptionRate;
+  }
+
+  formatTelemetryNavigatorDelta(point: AdoptionTelemetryPoint): string {
+    const delta = this.getTelemetryNavigatorDelta(point);
+    return `${delta > 0 ? '+' : ''}${delta}%`;
+  }
+
+  getTelemetryNavigatorDeltaColor(point: AdoptionTelemetryPoint): string {
+    const delta = this.getTelemetryNavigatorDelta(point);
+    if (delta > 0) {
+      return 'var(--ri-success)';
+    }
+
+    if (delta < 0) {
+      return 'var(--ri-error)';
+    }
+
+    return 'var(--ri-on-surface-variant)';
   }
 
   getTelemetryWindowStartLabel(): string {

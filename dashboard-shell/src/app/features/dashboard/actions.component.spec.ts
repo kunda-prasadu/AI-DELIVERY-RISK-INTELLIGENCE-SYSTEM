@@ -888,4 +888,41 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should compute signed adoption deltas for telemetry navigator snapshots', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (4 * 30 * 60 * 1000), openCount: 8, inProgressCount: 1, completedCount: 1, adoptionRate: 20 },
+      { timestamp: now - (3 * 30 * 60 * 1000), openCount: 7, inProgressCount: 2, completedCount: 1, adoptionRate: 30 },
+      { timestamp: now - (2 * 30 * 60 * 1000), openCount: 6, inProgressCount: 2, completedCount: 2, adoptionRate: 25 },
+      { timestamp: now - (1 * 30 * 60 * 1000), openCount: 5, inProgressCount: 2, completedCount: 3, adoptionRate: 40 },
+      { timestamp: now, openCount: 4, inProgressCount: 2, completedCount: 4, adoptionRate: 35 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      const firstPoint = secondComponent.adoptionTelemetry.find((point) => point.timestamp === seed[0].timestamp);
+      const risingPoint = secondComponent.adoptionTelemetry.find((point) => point.timestamp === seed[3].timestamp);
+      const fallingPoint = secondComponent.adoptionTelemetry.find((point) => point.timestamp === seed[4].timestamp);
+
+      expect(firstPoint).toBeTruthy();
+      expect(risingPoint).toBeTruthy();
+      expect(fallingPoint).toBeTruthy();
+
+      expect(secondComponent.getTelemetryNavigatorDelta(firstPoint!)).toBe(0);
+      expect(secondComponent.formatTelemetryNavigatorDelta(firstPoint!)).toBe('0%');
+
+      expect(secondComponent.getTelemetryNavigatorDelta(risingPoint!)).toBe(15);
+      expect(secondComponent.formatTelemetryNavigatorDelta(risingPoint!)).toBe('+15%');
+
+      expect(secondComponent.getTelemetryNavigatorDelta(fallingPoint!)).toBe(-5);
+      expect(secondComponent.formatTelemetryNavigatorDelta(fallingPoint!)).toBe('-5%');
+      done();
+    }, 100);
+  });
 });
