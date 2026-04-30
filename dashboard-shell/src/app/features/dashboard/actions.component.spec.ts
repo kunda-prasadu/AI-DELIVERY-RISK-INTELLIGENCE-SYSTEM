@@ -930,6 +930,55 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should keep pinned navigator snapshots at the top across filters and window resets', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 70 }, (_, index) => ({
+      timestamp: now - ((69 - index) * 30 * 60 * 1000),
+      openCount: Math.max(70 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+      secondComponent.toggleTelemetryNavigatorContinuousMode();
+
+      const candidate = secondComponent.getTelemetryNavigatorPoints().find((point) => point.adoptionRate < 40);
+      expect(candidate).toBeTruthy();
+
+      secondComponent.toggleTelemetryNavigatorPin(candidate!);
+      expect(secondComponent.isTelemetryNavigatorPinned(candidate!)).toBeTrue();
+
+      const pinnedTop = secondComponent.getTelemetryNavigatorPoints()[0];
+      expect(pinnedTop.timestamp).toBe(candidate!.timestamp);
+
+      secondComponent.setTelemetryNavigatorMinRate(95);
+      const filteredWithPin = secondComponent.getTelemetryNavigatorPoints();
+      expect(filteredWithPin[0].timestamp).toBe(candidate!.timestamp);
+      expect(filteredWithPin.some((point) => point.timestamp === candidate!.timestamp)).toBeTrue();
+
+      secondComponent.setTelemetryWindow('24h');
+      const afterWindowReset = secondComponent.getTelemetryNavigatorPoints();
+      expect(afterWindowReset[0].timestamp).toBe(candidate!.timestamp);
+
+      secondComponent.setTelemetryNavigatorMinRate(95);
+      secondComponent.toggleTelemetryNavigatorPin(candidate!);
+      expect(secondComponent.isTelemetryNavigatorPinned(candidate!)).toBeFalse();
+
+      const afterUnpin = secondComponent.getTelemetryNavigatorPoints();
+      expect(afterUnpin.some((point) => point.timestamp === candidate!.timestamp)).toBeFalse();
+      done();
+    }, 100);
+  });
+
   it('should compute signed adoption deltas for telemetry navigator snapshots', (done) => {
     const now = Date.now();
     const seed = [

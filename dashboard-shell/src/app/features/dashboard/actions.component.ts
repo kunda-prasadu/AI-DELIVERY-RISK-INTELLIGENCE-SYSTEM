@@ -264,16 +264,25 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
               </div>
             </div>
             <div [style.display]="'flex'" [style.gap.px]="8" [style.flex-wrap]="telemetryNavigatorContinuousMode ? 'nowrap' : 'wrap'" [style.overflow-x]="telemetryNavigatorContinuousMode ? 'auto' : 'visible'" [style.padding-bottom.px]="telemetryNavigatorContinuousMode ? 4 : 0">
-              <button
+              <div
                 *ngFor="let point of getTelemetryNavigatorPoints()"
-                mat-stroked-button
-                type="button"
-                style="flex:0 0 auto;"
-                [class.window-active]="isActiveTelemetryPoint(point)"
-                (click)="focusTelemetryPoint(point)">
-                {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}% ·
-                <span [style.color]="getTelemetryNavigatorDeltaColor(point)">Δ {{ formatTelemetryNavigatorDelta(point) }}</span>
-              </button>
+                style="display:flex;gap:4px;align-items:center;flex:0 0 auto;">
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [class.window-active]="isActiveTelemetryPoint(point)"
+                  (click)="focusTelemetryPoint(point)">
+                  {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}% ·
+                  <span [style.color]="getTelemetryNavigatorDeltaColor(point)">Δ {{ formatTelemetryNavigatorDelta(point) }}</span>
+                </button>
+                <button
+                  mat-stroked-button
+                  type="button"
+                  [attr.aria-label]="isTelemetryNavigatorPinned(point) ? 'Unpin Snapshot' : 'Pin Snapshot'"
+                  (click)="toggleTelemetryNavigatorPin(point)">
+                  {{ isTelemetryNavigatorPinned(point) ? 'Pinned' : 'Pin' }}
+                </button>
+              </div>
             </div>
           </div>
         </mat-card-content>
@@ -764,6 +773,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorSortOrder: TelemetryNavigatorSortOrder = 'newest';
   telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
+  telemetryNavigatorPinnedTimestamps: number[] = [];
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
@@ -1102,6 +1112,23 @@ export class ActionsComponent implements OnInit {
     this.clampTelemetryNavigatorOffset();
   }
 
+  isTelemetryNavigatorPinned(point: AdoptionTelemetryPoint): boolean {
+    return this.telemetryNavigatorPinnedTimestamps.includes(point.timestamp);
+  }
+
+  toggleTelemetryNavigatorPin(point: AdoptionTelemetryPoint): void {
+    if (this.isTelemetryNavigatorPinned(point)) {
+      this.telemetryNavigatorPinnedTimestamps = this.telemetryNavigatorPinnedTimestamps.filter(
+        (timestamp) => timestamp !== point.timestamp
+      );
+    } else {
+      this.telemetryNavigatorPinnedTimestamps = [...this.telemetryNavigatorPinnedTimestamps, point.timestamp];
+    }
+
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
   panTelemetryWindow(direction: 'older' | 'newer'): void {
     const nextOffset = direction === 'older'
       ? this.telemetryPanOffsetSteps + 1
@@ -1212,10 +1239,18 @@ export class ActionsComponent implements OnInit {
 
   private getAllTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
     const visibleTimestamps = new Set(this.getTelemetryWindowPoints().map((point) => point.timestamp));
+    const pinnedTimestamps = new Set(this.telemetryNavigatorPinnedTimestamps);
+    const pinnedPoints = this.adoptionTelemetry.filter((point) => pinnedTimestamps.has(point.timestamp));
+    const orderedPinned = this.telemetryNavigatorSortOrder === 'newest'
+      ? [...pinnedPoints].sort((left, right) => right.timestamp - left.timestamp)
+      : [...pinnedPoints].sort((left, right) => left.timestamp - right.timestamp);
     const points = this.adoptionTelemetry.filter(
-      (point) => !visibleTimestamps.has(point.timestamp) && point.adoptionRate >= this.telemetryNavigatorMinRate
+      (point) => !pinnedTimestamps.has(point.timestamp)
+        && !visibleTimestamps.has(point.timestamp)
+        && point.adoptionRate >= this.telemetryNavigatorMinRate
     );
-    return this.telemetryNavigatorSortOrder === 'newest' ? [...points].reverse() : points;
+    const orderedPoints = this.telemetryNavigatorSortOrder === 'newest' ? [...points].reverse() : points;
+    return [...orderedPinned, ...orderedPoints];
   }
 
   private getMaxTelemetryNavigatorOffset(): number {
