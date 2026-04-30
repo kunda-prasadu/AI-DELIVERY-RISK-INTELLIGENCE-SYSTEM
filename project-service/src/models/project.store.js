@@ -7,7 +7,7 @@ const { v4: uuidv4 } = require('uuid');
  * Swappable for a PostgreSQL data-access layer (same interface).
  *
  * Project schema:
- *   id, name, description, status, team, startDate, targetDate,
+ *   id, name, description, status, portfolioId, portfolioName, team, startDate, targetDate,
  *   metadata { repo, jiraBoard, qaEndpoint, ciProvider }
  */
 
@@ -19,6 +19,8 @@ const _seed = () => [
     name: 'Payments Gateway v3',
     description: 'Modernize payments gateway to support multi-currency settlement.',
     status: 'active',
+    portfolioId: 'pf-fintech',
+    portfolioName: 'FinTech Modernization',
     team: 'platform',
     startDate: '2026-01-15',
     targetDate: '2026-06-30',
@@ -34,6 +36,8 @@ const _seed = () => [
     name: 'Identity & Access Management 2.0',
     description: 'Centralise IAM across all microservices with OIDC/OAuth2.',
     status: 'active',
+    portfolioId: 'pf-security',
+    portfolioName: 'Cyber Resilience',
     team: 'security',
     startDate: '2026-02-01',
     targetDate: '2026-07-31',
@@ -49,6 +53,8 @@ const _seed = () => [
     name: 'Data Platform Migration',
     description: 'Migrate legacy data warehouse to lakehouse architecture on cloud.',
     status: 'at_risk',
+    portfolioId: 'pf-data',
+    portfolioName: 'Data and AI Transformation',
     team: 'data',
     startDate: '2025-11-01',
     targetDate: '2026-05-31',
@@ -64,6 +70,8 @@ const _seed = () => [
     name: 'Mobile App Rewrite',
     description: 'Rewrite React Native app with improved UX and offline support.',
     status: 'paused',
+    portfolioId: 'pf-experience',
+    portfolioName: 'Customer Experience',
     team: 'mobile',
     startDate: '2026-03-01',
     targetDate: '2026-09-30',
@@ -79,6 +87,8 @@ const _seed = () => [
     name: 'AI Delivery Risk Intelligence',
     description: 'Real-time multi-agent system for delivery risk detection and prediction.',
     status: 'active',
+    portfolioId: 'pf-operations',
+    portfolioName: 'Delivery Operations',
     team: 'platform',
     startDate: '2026-04-01',
     targetDate: '2026-12-31',
@@ -97,7 +107,7 @@ let _store = new Map(_seed().map(p => [p.id, p]));
 
 /**
  * List all projects, optionally filtered by status.
- * @param {object} filters  { status?: string, team?: string }
+ * @param {object} filters  { status?: string, team?: string, portfolioId?: string }
  * @returns {Array}
  */
 function listAll(filters = {}) {
@@ -107,6 +117,9 @@ function listAll(filters = {}) {
   }
   if (filters.team) {
     projects = projects.filter(p => p.team === filters.team);
+  }
+  if (filters.portfolioId) {
+    projects = projects.filter(p => p.portfolioId === filters.portfolioId);
   }
   return projects;
 }
@@ -135,6 +148,8 @@ function create(data) {
     name: data.name,
     description: data.description || '',
     status: data.status || 'active',
+    portfolioId: data.portfolioId || 'pf-unassigned',
+    portfolioName: data.portfolioName || 'Unassigned Portfolio',
     team: data.team,
     startDate: data.startDate || new Date().toISOString().slice(0, 10),
     targetDate: data.targetDate || null,

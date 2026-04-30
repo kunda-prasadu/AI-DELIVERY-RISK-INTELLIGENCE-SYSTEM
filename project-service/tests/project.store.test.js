@@ -21,6 +21,12 @@ describe('ProjectStore.listAll', () => {
     expect(platform.every(p => p.team === 'platform')).toBe(true);
   });
 
+  test('filters by portfolioId', () => {
+    const fintech = ProjectStore.listAll({ portfolioId: 'pf-fintech' });
+    expect(fintech.length).toBeGreaterThan(0);
+    expect(fintech.every(p => p.portfolioId === 'pf-fintech')).toBe(true);
+  });
+
   test('combined filter returns subset', () => {
     const results = ProjectStore.listAll({ status: 'active', team: 'platform' });
     expect(results.every(p => p.status === 'active' && p.team === 'platform')).toBe(true);
@@ -55,6 +61,19 @@ describe('ProjectStore.create', () => {
     expect(p.id).toBeTruthy();
     expect(p.name).toBe('Test Project Alpha');
     expect(p.status).toBe('active');
+    expect(p.portfolioId).toBe('pf-unassigned');
+    expect(p.portfolioName).toBe('Unassigned Portfolio');
+  });
+
+  test('creates project with provided portfolio fields', () => {
+    const p = ProjectStore.create({
+      ...newProject,
+      portfolioId: 'pf-enterprise',
+      portfolioName: 'Enterprise Portfolio',
+    });
+
+    expect(p.portfolioId).toBe('pf-enterprise');
+    expect(p.portfolioName).toBe('Enterprise Portfolio');
   });
 
   test('created project is retrievable', () => {

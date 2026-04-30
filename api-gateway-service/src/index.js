@@ -5,7 +5,7 @@ const config = require('./config/gateway.config');
 const logger = require('./middleware/logger');
 const requestTracker = require('./middleware/request.tracker');
 const errorHandler = require('./middleware/error.handler');
-const { optionalAuth, requireAuth } = require('./middleware/auth.middleware');
+const { optionalAuth, requireAuth, requireMfa } = require('./middleware/auth.middleware');
 const {
   globalLimiter,
   authLimiter,
@@ -14,6 +14,7 @@ const {
   observabilityLimiter,
 } = require('./middleware/rate-limiters');
 const { createProxyHandler } = require('./routes/proxy.routes');
+const { createAgentRouter } = require('./routes/agent.routes');
 
 const app = express();
 
@@ -28,8 +29,12 @@ app.get('/health', (_req, res) => {
 
 // Route-specific policies
 app.use('/api/auth', authLimiter, createProxyHandler(config.services.identity, '/api/auth'));
-app.use('/api/projects', requireAuth, projectsLimiter, createProxyHandler(config.services.project, '/api/projects'));
-app.use('/api/metrics', requireAuth, metricsLimiter, createProxyHandler(config.services.metrics, '/api/metrics'));
+app.use('/api/agents', requireAuth, requireMfa, projectsLimiter, createAgentRouter(config.services));
+app.use('/api/projects', requireAuth, requireMfa, projectsLimiter, createProxyHandler(config.services.project, '/api/projects'));
+app.use('/api/reports', requireAuth, requireMfa, projectsLimiter, createProxyHandler(config.services.reporting, '/api/reports'));
+app.use('/api/feedback', requireAuth, requireMfa, projectsLimiter, createProxyHandler(config.services.feedback, '/api/feedback'));
+app.use('/api/forecasts', requireAuth, requireMfa, projectsLimiter, createProxyHandler(config.services.forecast, '/api/forecasts'));
+app.use('/api/metrics', requireAuth, requireMfa, metricsLimiter, createProxyHandler(config.services.metrics, '/api/metrics'));
 app.use('/api/observability', observabilityLimiter, createProxyHandler(config.services.observability, '/api/observability'));
 
 app.use((_req, res) => {

@@ -1,0 +1,14 @@
+{
+  "reportFile": "go-live-readiness/reports/latest-dr-backup-evidence.md",
+  "requiredMarkers": [
+    "## Disaster Recovery Drill",
+    "## Backup Restore Validation",
+    "## Gate Verdict"
+  ],
+  "thresholds": {
+    "maxRecoveryMinutes": 120,
+    "maxDataLossMinutes": 15,
+    "minBackupSuccessPct": 99,
+    "minRestoreValidationPct": 100
+  }
+}

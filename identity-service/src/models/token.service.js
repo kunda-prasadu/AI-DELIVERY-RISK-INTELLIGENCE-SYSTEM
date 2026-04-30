@@ -19,15 +19,17 @@ const TokenService = {
    * Issue an access token for a user.
    * @param {{ id: string, email: string, role: string }} user
    * @param {string[]} permissions
+   * @param {{ mfaVerified?: boolean }} options
    * @returns {string}
    */
-  issueAccessToken(user, permissions = []) {
+  issueAccessToken(user, permissions = [], options = {}) {
     return jwt.sign(
       {
         sub: user.id,
         email: user.email,
         role: user.role,
         permissions,
+        mfaVerified: options.mfaVerified === true,
       },
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn, algorithm: 'HS256' }

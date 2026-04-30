@@ -6,6 +6,7 @@ const {
   extractBearerToken,
   optionalAuth,
   requireAuth,
+  requireMfa,
 } = require('../src/middleware/auth.middleware');
 
 describe('auth.middleware', () => {
@@ -59,7 +60,7 @@ describe('auth.middleware', () => {
   });
 
   test('requireAuth passes when token valid', () => {
-    const token = jwt.sign({ id: 'u2', role: 'director' }, config.jwtSecret, { expiresIn: '1h' });
+    const token = jwt.sign({ id: 'u2', role: 'director', mfaVerified: true }, config.jwtSecret, { expiresIn: '1h' });
     const req = { headers: { authorization: `Bearer ${token}` } };
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
     const next = jest.fn();
@@ -67,6 +68,27 @@ describe('auth.middleware', () => {
     requireAuth(req, res, next);
 
     expect(req.user.id).toBe('u2');
+    expect(next).toHaveBeenCalled();
+  });
+
+  test('requireMfa blocks privileged role without mfaVerified', () => {
+    const req = { user: { id: 'u3', role: 'admin', mfaVerified: false } };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+
+    requireMfa(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  test('requireMfa allows privileged role with mfaVerified', () => {
+    const req = { user: { id: 'u4', role: 'admin', mfaVerified: true } };
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    const next = jest.fn();
+
+    requireMfa(req, res, next);
+
     expect(next).toHaveBeenCalled();
   });
 });

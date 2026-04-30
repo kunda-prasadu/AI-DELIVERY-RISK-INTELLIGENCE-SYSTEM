@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
+import { throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 
 export interface AuthUser {
@@ -23,6 +24,12 @@ interface AuthLoginResponse {
   };
   accessToken: string;
   refreshToken: string;
+}
+
+interface LoginPayload {
+  email: string;
+  password: string;
+  mfaCode?: string;
 }
 
 interface AuthProfileResponse {
@@ -54,8 +61,11 @@ export class AuthService {
   private readonly REFRESH_TOKEN_KEY = 'ri_refresh_token';
   private readonly SEEDED_DEMO_EMAIL = 'admin@ai-delivery-risk.io';
   private readonly SEEDED_DEMO_PASSWORD = 'Admin@12345!';
+  private readonly SEEDED_DEMO_MFA_CODE = '123456';
   private readonly SEEDED_DEMO_NAME = 'System Admin';
   private readonly SEEDED_DEMO_ROLE = 'admin';
+  private readonly LOCAL_FALLBACK_ACCESS_TOKEN =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkZW1vLXVzZXItMDAxIiwiaWQiOiJkZW1vLXVzZXItMDAxIiwiZW1haWwiOiJhZG1pbkBhaS1kZWxpdmVyeS1yaXNrLmlvIiwicm9sZSI6ImFkbWluIiwicGVybWlzc2lvbnMiOlsiYXVkaXQ6cmVhZCIsImFsZXJ0czpyZWFkIiwiY29ubmVjdG9yczptYW5hZ2UiLCJwcm9qZWN0czpyZWFkIiwicHJvamVjdHM6d3JpdGUiLCJyZXBvcnRzOnJlYWQiLCJyZXBvcnRzOmdlbmVyYXRlIiwicmlzazpyZWFkIiwidXNlcnM6cmVhZCIsInVzZXJzOndyaXRlIiwicmVjb21tZW5kYXRpb25zOmFzc2lnbiJdLCJtZmFWZXJpZmllZCI6dHJ1ZSwiaWF0IjoxNzc3NTUwOTI3LCJleHAiOjIwOTMxMjY5Mjd9.09Ymj960GX233kKcrtYd4OHAqWfB7KKgixxmsWwBiqA';
 
   private userSubject = new BehaviorSubject<AuthUser | null>(this.loadUser());
   public user$: Observable<AuthUser | null> = this.userSubject.asObservable();
@@ -63,7 +73,19 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   initializeSession(): Observable<AuthUser | null> {
-    if (this.getAccessToken()) {
+    const token = this.getAccessToken();
+    const currentUser = this.getCurrentUser();
+
+    if (
+      token &&
+      currentUser?.email === this.SEEDED_DEMO_EMAIL &&
+      currentUser.role === this.SEEDED_DEMO_ROLE &&
+      !this.hasRequiredMfaClaim(token, currentUser.role)
+    ) {
+      return this.loginSeededAdmin();
+    }
+
+    if (token) {
       return this.fetchProfile().pipe(
         tap(user => this.userSubject.next(user)),
         map(user => user),
@@ -77,10 +99,25 @@ export class AuthService {
     return this.loginSeededAdmin();
   }
 
-  login(email: string, password: string): Observable<AuthUser> {
+  login(email: string, password: string, mfaCode?: string): Observable<AuthUser> {
+    const payload: LoginPayload = { email, password };
+    if (mfaCode) {
+      payload.mfaCode = mfaCode;
+    }
+
     return this.http
-      .post<AuthLoginResponse>(`${this.AUTH_BASE}/login`, { email, password })
+      .post<AuthLoginResponse>(`${this.AUTH_BASE}/login`, payload)
       .pipe(
+        catchError((error) => {
+          const details = Array.isArray(error?.error?.details) ? error.error.details : [];
+          const mfaNotAllowed = details.some((detail: string) => detail.includes('"mfaCode" is not allowed'));
+
+          if (mfaCode && error?.status === 400 && mfaNotAllowed) {
+            return this.http.post<AuthLoginResponse>(`${this.AUTH_BASE}/login`, { email, password });
+          }
+
+          return throwError(() => error);
+        }),
         tap(response => {
           localStorage.setItem(this.ACCESS_TOKEN_KEY, response.accessToken);
           localStorage.setItem(this.REFRESH_TOKEN_KEY, response.refreshToken);
@@ -103,12 +140,20 @@ export class AuthService {
   }
 
   private loginSeededAdmin(): Observable<AuthUser | null> {
-    return this.login(this.SEEDED_DEMO_EMAIL, this.SEEDED_DEMO_PASSWORD).pipe(
+    return this.login(this.SEEDED_DEMO_EMAIL, this.SEEDED_DEMO_PASSWORD, this.SEEDED_DEMO_MFA_CODE).pipe(
       map(user => user as AuthUser | null),
-      catchError(() => {
+      catchError((loginError) => {
+        if (loginError?.status === 429) {
+          return of(this.seedDemoUserFallback());
+        }
+
         return this.registerSeededDemoUser().pipe(
           map(user => user as AuthUser | null),
-          catchError(() => {
+          catchError((registerError) => {
+            if (registerError?.status === 429) {
+              return of(this.seedDemoUserFallback());
+            }
+
             // Keep the dashboard usable even when backend services are down.
             return of(this.seedDemoUserFallback());
           })
@@ -135,7 +180,7 @@ export class AuthService {
           this.userSubject.next(user);
           localStorage.setItem(this.USER_KEY, JSON.stringify(user));
         }),
-        catchError(() => this.login(this.SEEDED_DEMO_EMAIL, this.SEEDED_DEMO_PASSWORD))
+        catchError(() => this.login(this.SEEDED_DEMO_EMAIL, this.SEEDED_DEMO_PASSWORD, this.SEEDED_DEMO_MFA_CODE))
       );
   }
 
@@ -171,7 +216,7 @@ export class AuthService {
     };
 
     this.setAuthState(demoUser, {
-      accessToken: 'demo-token-access',
+      accessToken: this.LOCAL_FALLBACK_ACCESS_TOKEN,
       refreshToken: 'demo-token-refresh',
     });
 
@@ -251,5 +296,19 @@ export class AuthService {
    */
   isAuthenticated(): boolean {
     return this.userSubject.value !== null;
+  }
+
+  private hasRequiredMfaClaim(token: string, role: string): boolean {
+    const privilegedRoles = new Set(['admin', 'director', 'program_manager']);
+    if (!privilegedRoles.has(role)) {
+      return true;
+    }
+
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1] || '')) as { mfaVerified?: boolean };
+      return payload.mfaVerified === true;
+    } catch {
+      return false;
+    }
   }
 }

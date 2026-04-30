@@ -98,6 +98,27 @@ app-root {
   font-weight: 600;
 }
 
+// Global autocomplete panel styles (rendered in cdk-overlay-container outside component)
+.cdk-overlay-container .mat-mdc-autocomplete-panel {
+  background: #ffffff !important;
+  border: 1px solid var(--ri-outline-variant);
+  border-radius: 12px !important;
+  box-shadow: 0 10px 24px rgba(6, 17, 55, 0.14) !important;
+  padding: 6px;
+
+  .mat-mdc-option {
+    border-radius: 8px;
+    min-height: 40px;
+    font-size: 13px;
+    color: var(--ri-on-surface);
+
+    &.mdc-list-item--selected,
+    &:hover {
+      background: color-mix(in srgb, var(--ri-primary) 10%, white) !important;
+    }
+  }
+}
+
 .badge-high {
   background-color: #{theme.$severity-high};
   color: white;

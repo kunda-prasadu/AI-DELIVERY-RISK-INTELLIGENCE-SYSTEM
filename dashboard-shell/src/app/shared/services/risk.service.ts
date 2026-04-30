@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, forkJoin, of } from 'rxjs';
-import { catchError, finalize, map, switchMap, tap } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap, take, tap } from 'rxjs/operators';
 
 export interface RiskScore {
   projectId: string;
@@ -135,7 +135,8 @@ export class RiskService {
 
   refreshRiskScores(): Observable<RiskScore[]> {
     if (this.loading) {
-      return this.riskScores$.asObservable();
+      // Ensure callers waiting inside forkJoin get a completing stream.
+      return this.riskScores$.asObservable().pipe(take(1));
     }
 
     this.hasAttemptedLoad = true;

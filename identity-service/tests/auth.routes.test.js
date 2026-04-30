@@ -84,11 +84,19 @@ describe('POST /auth/login', () => {
 
   test('returns tokens on valid credentials', async () => {
     const res = await request(app).post('/auth/login').send({
-      email: adminUser.email, password: adminUser.password,
+      email: adminUser.email, password: adminUser.password, mfaCode: '123456',
     });
     expect(res.status).toBe(200);
     expect(res.body.accessToken).toBeTruthy();
     expect(res.body.refreshToken).toBeTruthy();
+  });
+
+  test('returns 401 for privileged role login without MFA code', async () => {
+    const res = await request(app).post('/auth/login').send({
+      email: adminUser.email, password: adminUser.password,
+    });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toMatch(/MFA/);
   });
 
   test('returns 401 for wrong password', async () => {

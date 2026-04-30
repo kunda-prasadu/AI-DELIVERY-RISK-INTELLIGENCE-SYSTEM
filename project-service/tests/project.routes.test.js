@@ -67,6 +67,16 @@ describe('GET /projects', () => {
     expect(res.body.projects.every(p => p.status === 'active')).toBe(true);
   });
 
+  test('filters by portfolioId', async () => {
+    const res = await request(app)
+      .get('/projects?portfolioId=pf-fintech')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.projects.length).toBeGreaterThan(0);
+    expect(res.body.projects.every(p => p.portfolioId === 'pf-fintech')).toBe(true);
+  });
+
   test('returns 401 without token', async () => {
     const res = await request(app).get('/projects');
     expect(res.status).toBe(401);
@@ -316,6 +326,144 @@ describe('GET /projects/:id/recommendations/summary', () => {
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.status).toBe(404);
+  });
+});
+
+// ── GET /projects/:id/agent-workbench ──────────────────────────────────────
+describe('GET /projects/:id/agent-workbench', () => {
+  test('returns consolidated agent payload with previews and summaries', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/agent-workbench?insightLimit=2&recommendationLimit=2')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.workbench.projectId).toBe('proj-001');
+    expect(Array.isArray(res.body.workbench.agents)).toBe(true);
+    expect(res.body.workbench.agents.length).toBe(4);
+    expect(res.body.workbench.summaries.insights.totalInsights).toBeGreaterThan(0);
+    expect(res.body.workbench.summaries.recommendations.totalRecommendations).toBeGreaterThan(0);
+    expect(res.body.workbench.previews.insights.length).toBeLessThanOrEqual(2);
+    expect(res.body.workbench.previews.recommendations.length).toBeLessThanOrEqual(2);
+    expect(Array.isArray(res.body.workbench.nextActions)).toBe(true);
+  });
+
+  test('rejects invalid preview limits', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/agent-workbench?insightLimit=99')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid agent workbench query');
+  });
+
+  test('returns 404 for unknown project', async () => {
+    const res = await request(app)
+      .get('/projects/ghost/agent-workbench')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+// ── GET /projects/metrics/budget-health ────────────────────────────────────
+describe('GET /projects/metrics/budget-health', () => {
+  test('returns budget health payload for authorized reader', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/budget-health')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.projectsTracked).toBe('number');
+    expect(typeof res.body.totalPlannedBudget).toBe('number');
+    expect(typeof res.body.totalProjectedSpend).toBe('number');
+    expect(typeof res.body.totalVariance).toBe('number');
+    expect(typeof res.body.totalVariancePercentage).toBe('number');
+    expect(['healthy', 'watch', 'over_budget']).toContain(res.body.budgetHealthStatus);
+    expect(Array.isArray(res.body.topOverruns)).toBe(true);
+  });
+
+  test('returns 401 without auth token', async () => {
+    const res = await request(app).get('/projects/metrics/budget-health');
+    expect(res.status).toBe(401);
+  });
+
+  test('returns 403 when projects:read permission is missing', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/budget-health')
+      .set('Authorization', `Bearer ${noPermToken}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test('supports portfolioId filter', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/budget-health?portfolioId=pf-fintech')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.projectsTracked).toBe(1);
+  });
+});
+
+// ── GET /projects/metrics/recommendation-adoption ─────────────────────────
+describe('GET /projects/metrics/recommendation-adoption', () => {
+  test('returns recommendation adoption payload for authorized reader', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/recommendation-adoption')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.projectsTracked).toBe('number');
+    expect(typeof res.body.totalRecommendations).toBe('number');
+    expect(typeof res.body.activeRecommendations).toBe('number');
+    expect(typeof res.body.estimatedAdoptionRate).toBe('number');
+    expect(['LOW', 'MEDIUM', 'HIGH']).toContain(res.body.adoptionRiskLevel);
+    expect(Array.isArray(res.body.topOwners)).toBe(true);
+    expect(Array.isArray(res.body.topRecommendations)).toBe(true);
+  });
+
+  test('returns 401 without auth token', async () => {
+    const res = await request(app).get('/projects/metrics/recommendation-adoption');
+    expect(res.status).toBe(401);
+  });
+
+  test('returns 403 when projects:read permission is missing', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/recommendation-adoption')
+      .set('Authorization', `Bearer ${noPermToken}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+// ── GET /projects/metrics/owner-workload ───────────────────────────────
+describe('GET /projects/metrics/owner-workload', () => {
+  test('returns owner workload payload for authorized reader', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/owner-workload')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.projectsTracked).toBe('number');
+    expect(typeof res.body.ownersTracked).toBe('number');
+    expect(typeof res.body.overloadedOwners).toBe('number');
+    expect(typeof res.body.highestOwnerLoad).toBe('number');
+    expect(typeof res.body.averageRecommendationsPerOwner).toBe('number');
+    expect(['LOW', 'MEDIUM', 'HIGH']).toContain(res.body.workloadRiskLevel);
+    expect(Array.isArray(res.body.topOwners)).toBe(true);
+  });
+
+  test('returns 401 without auth token', async () => {
+    const res = await request(app).get('/projects/metrics/owner-workload');
+    expect(res.status).toBe(401);
+  });
+
+  test('returns 403 when projects:read permission is missing', async () => {
+    const res = await request(app)
+      .get('/projects/metrics/owner-workload')
+      .set('Authorization', `Bearer ${noPermToken}`);
+
+    expect(res.status).toBe(403);
   });
 });
 

@@ -2,11 +2,13 @@ import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
+import { AuthService } from '../../shared/services/auth.service';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
 import { AlertService } from '../../shared/services/alert.service';
 import { ReportingService } from '../../shared/services/reporting.service';
 import { ForecastService } from '../../shared/services/forecast.service';
+import { DashboardMetricsService } from '../../shared/services/dashboard-metrics.service';
 
 describe('DashboardComponent', () => {
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
@@ -14,7 +16,11 @@ describe('DashboardComponent', () => {
   let alertServiceSpy: jasmine.SpyObj<AlertService>;
   let reportingServiceSpy: jasmine.SpyObj<ReportingService>;
   let forecastServiceSpy: jasmine.SpyObj<ForecastService>;
+  let dashboardMetricsServiceSpy: jasmine.SpyObj<DashboardMetricsService>;
   let routerSpy: jasmine.SpyObj<Router>;
+  const authServiceStub = {
+    user$: of(null),
+  };
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
@@ -22,6 +28,17 @@ describe('DashboardComponent', () => {
     alertServiceSpy = jasmine.createSpyObj<AlertService>('AlertService', ['getPortfolioAlerts']);
     reportingServiceSpy = jasmine.createSpyObj<ReportingService>('ReportingService', ['listReports']);
     forecastServiceSpy = jasmine.createSpyObj<ForecastService>('ForecastService', ['list']);
+    dashboardMetricsServiceSpy = jasmine.createSpyObj<DashboardMetricsService>('DashboardMetricsService', [
+      'getDashboardMetrics',
+      'getTeamCapacity',
+      'getQualitySnapshot',
+      'getTimelineHealth',
+      'getDependencyMap',
+      'getReleaseReadiness',
+      'getBudgetHealth',
+      'getRecommendationAdoption',
+      'getOwnerWorkload',
+    ]);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
       'getPortfolioAnomalies',
@@ -50,15 +67,25 @@ describe('DashboardComponent', () => {
     });
     reportingServiceSpy.listReports.and.returnValue(of({ reports: [], total: 0 }));
     forecastServiceSpy.list.and.returnValue(of({ forecasts: [], total: 0 }));
-
+    dashboardMetricsServiceSpy.getDashboardMetrics.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getTeamCapacity.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getQualitySnapshot.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getTimelineHealth.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getDependencyMap.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getReleaseReadiness.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getBudgetHealth.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getRecommendationAdoption.and.returnValue(of(null as any));
+    dashboardMetricsServiceSpy.getOwnerWorkload.and.returnValue(of(null as any));
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
+        { provide: AuthService, useValue: authServiceStub },
         { provide: ProjectsService, useValue: projectsServiceSpy },
         { provide: RiskService, useValue: riskServiceSpy },
         { provide: AlertService, useValue: alertServiceSpy },
         { provide: ReportingService, useValue: reportingServiceSpy },
         { provide: ForecastService, useValue: forecastServiceSpy },
+        { provide: DashboardMetricsService, useValue: dashboardMetricsServiceSpy },
         { provide: Router, useValue: routerSpy },
       ],
     }).compileComponents();
@@ -222,6 +249,8 @@ describe('DashboardComponent', () => {
     expect(compiled.textContent).toContain('Stale');
     expect(compiled.textContent).toContain('Anomaly Radar');
     expect(compiled.textContent).toContain('Active Alerts');
+    expect(compiled.textContent).toContain('What Needs Attention Now');
+    expect(compiled.textContent).toContain('High risk score (82) requires remediation and owner alignment.');
     expect(compiled.textContent).toContain('Executive Snapshot');
     expect(compiled.textContent).toContain('Latest Executive Report');
     expect(compiled.textContent).toContain('Latest Portfolio Forecast');
@@ -245,6 +274,123 @@ describe('DashboardComponent', () => {
 
     expect(component.errorMessage).toContain('Dashboard data is unavailable');
     expect(compiled.textContent).toContain('Try Again');
+  });
+
+  it('should render Budget Health card when budget data is available', () => {
+    projectsServiceSpy.getProjects.and.returnValue(
+      of({ projects: [{ id: 'p1' } as any], total: 1 })
+    );
+    riskServiceSpy.refreshRiskScores.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          projectName: 'Project One',
+          score: 70,
+          band: 'HIGH',
+          signals: { codeVelocity: 70, quality: 60, cicd: 55, jiraVelocity: 60 },
+          lastUpdated: new Date().toISOString(),
+        },
+      ])
+    );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([] as any));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+    dashboardMetricsServiceSpy.getDashboardMetrics.and.returnValue(
+      of({
+        teamCapacity: null,
+        qualitySnapshot: null,
+        timelineHealth: null,
+        dependencyMap: null,
+        releaseReadiness: null,
+        budgetHealth: {
+          projectsTracked: 5,
+          totalPlannedBudget: 3700000,
+          totalProjectedSpend: 3839900,
+          totalVariance: 139900,
+          totalVariancePercentage: 4,
+          budgetHealthStatus: 'watch',
+          overBudgetProjects: 1,
+          watchProjects: 1,
+          topOverruns: [
+            {
+              projectId: 'proj-003',
+              projectName: 'Data Platform Migration',
+              team: 'data',
+              plannedBudget: 900000,
+              projectedSpend: 1255500,
+              variance: 355500,
+              variancePercentage: 40,
+              riskScore: 70,
+              budgetStatus: 'over_budget',
+            },
+          ],
+          generatedAt: new Date().toISOString(),
+        },
+        recommendationAdoption: {
+          projectsTracked: 5,
+          totalRecommendations: 14,
+          activeRecommendations: 11,
+          highPriorityRecommendations: 3,
+          averageConfidence: 79,
+          estimatedAdoptionRate: 74,
+          adoptionRiskLevel: 'MEDIUM',
+          topOwners: [{ ownerRole: 'Program Manager', recommendationCount: 4 }],
+          topRecommendations: [
+            {
+              id: 'REC-SUMMARY-1',
+              projectId: 'proj-003',
+              projectName: 'Data Platform Migration',
+              team: 'data',
+              title: 'Stabilize release train handoffs',
+              priority: 'P1',
+              ownerRole: 'Program Manager',
+              confidence: 91,
+              status: 'OPEN',
+            },
+          ],
+          generatedAt: new Date().toISOString(),
+        },
+        ownerWorkload: {
+          projectsTracked: 5,
+          ownersTracked: 4,
+          overloadedOwners: 1,
+          highestOwnerLoad: 6,
+          averageRecommendationsPerOwner: 3.5,
+          workloadRiskLevel: 'HIGH',
+          topOwners: [
+            {
+              ownerRole: 'Program Manager',
+              recommendationCount: 6,
+              highPriorityCount: 3,
+              projectCount: 3,
+              averageConfidence: 88,
+              workloadRiskLevel: 'HIGH',
+            },
+          ],
+          generatedAt: new Date().toISOString(),
+        },
+        generatedAt: new Date().toISOString(),
+      } as any)
+    );
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('Budget Health');
+    expect(compiled.textContent).toContain('Portfolio Variance');
+    expect(compiled.textContent).toContain('Top Budget Overruns');
+    expect(compiled.textContent).toContain('Data Platform Migration');
+    expect(compiled.textContent).toContain('Live Portfolio Snapshot');
+    expect(compiled.textContent).toContain('Derived from current live dashboard metrics');
+    expect(compiled.textContent).toContain('What Needs Attention Now');
+    expect(compiled.textContent).toContain('Open Risk Details');
+    expect(compiled.textContent).toContain('Recommendation Adoption');
+    expect(compiled.textContent).toContain('Estimated Adoption Rate');
+    expect(compiled.textContent).toContain('Top Recommendations Requiring Follow-up');
+    expect(compiled.textContent).toContain('Stabilize release train handoffs');
+    expect(compiled.textContent).toContain('Owner Workload');
+    expect(compiled.textContent).toContain('Overloaded Owners');
+    expect(compiled.textContent).toContain('Peak Recommendation Load');
   });
 
   it('should navigate to anomaly drilldown from dashboard', () => {
@@ -485,5 +631,33 @@ describe('DashboardComponent', () => {
 
     expect(fixture.componentInstance.isRetryDisabled('p1')).toBeTrue();
     expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry limit reached');
+  });
+
+  it('should reload dashboard with selected portfolio filter', () => {
+    projectsServiceSpy.getProjects.and.callFake((filters?: { portfolioId?: string }) => {
+      if (filters?.portfolioId === 'pf-fintech') {
+        return of({ projects: [{ id: 'p1', portfolioId: 'pf-fintech' } as any], total: 1 });
+      }
+
+      return of({
+        projects: [
+          { id: 'p1', portfolioId: 'pf-fintech', portfolioName: 'FinTech Modernization' } as any,
+          { id: 'p2', portfolioId: 'pf-operations', portfolioName: 'Operations Excellence' } as any,
+        ],
+        total: 2,
+      });
+    });
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance.onPortfolioSelectionChange('pf-fintech');
+    fixture.detectChanges();
+
+    expect(projectsServiceSpy.getProjects).toHaveBeenCalledWith({ portfolioId: 'pf-fintech' });
+    expect(dashboardMetricsServiceSpy.getDashboardMetrics).toHaveBeenCalledWith({ portfolioId: 'pf-fintech' });
   });
 });

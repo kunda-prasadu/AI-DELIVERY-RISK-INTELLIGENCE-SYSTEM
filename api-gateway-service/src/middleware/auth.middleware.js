@@ -36,8 +36,26 @@ function requireAuth(req, res, next) {
   }
 }
 
+function requireMfa(req, res, next) {
+  if (!config.mfaEnforced) {
+    return next();
+  }
+
+  const privilegedRoles = new Set(['admin', 'director', 'program_manager']);
+  if (!req.user || !privilegedRoles.has(req.user.role)) {
+    return next();
+  }
+
+  if (req.user.mfaVerified === true) {
+    return next();
+  }
+
+  return res.status(403).json({ error: 'MFA required for privileged role' });
+}
+
 module.exports = {
   optionalAuth,
   requireAuth,
+  requireMfa,
   extractBearerToken,
 };

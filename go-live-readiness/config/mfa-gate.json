@@ -1,0 +1,14 @@
+{
+  "reportFile": "go-live-readiness/reports/latest-mfa-evidence.md",
+  "requiredMarkers": [
+    "## MFA Login Control Validation",
+    "## Gateway Enforcement Validation",
+    "## Gate Verdict"
+  ],
+  "requiredPassFlags": [
+    "Privileged Login Requires MFA:",
+    "Privileged Login With MFA Succeeds:",
+    "Gateway Blocks Privileged Token Without MFA Claim:",
+    "Gateway Allows Privileged Token With MFA Claim:"
+  ]
+}

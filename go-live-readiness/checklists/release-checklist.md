@@ -12,6 +12,9 @@
 
 - Run `npm run check` in `go-live-readiness`.
 - Run `npm run check:compliance` in `go-live-readiness`.
+- Run `npm run check:mfa` in `go-live-readiness`.
+- Run `npm run check:dr` in `go-live-readiness`.
+- Run `npm run check:weekly-report` in `go-live-readiness`.
 - Run `npm run check:defects` in `go-live-readiness`.
 - Run `npm run check:hypercare` in `go-live-readiness`.
 - Run `npm run check:live` against staging with all services running.
@@ -39,6 +42,9 @@
 
 - All health endpoints are green.
 - Compliance policy and evidence checks pass.
+- MFA enforcement gate confirms privileged login and gateway protection behavior.
+- DR and backup gate confirms RTO/RPO and restore drill compliance.
+- Weekly report dispatch gate confirms successful scheduled distribution evidence.
 - Defect burn-down gate confirms no open critical defects.
 - Hypercare SLA gate confirms 2-week window and SLA adherence.
 - No Sev-1 or Sev-2 incidents open.

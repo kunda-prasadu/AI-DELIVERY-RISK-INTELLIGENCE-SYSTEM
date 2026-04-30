@@ -41,6 +41,7 @@ const registerSchema = Joi.object({
 const loginSchema = Joi.object({
   email: Joi.string().email().required(),
   password: Joi.string().required(),
+  mfaCode: Joi.string().pattern(/^\d{6}$/).optional(),
 });
 
 const refreshSchema = Joi.object({
@@ -145,8 +146,26 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    const requiresMfa = config.mfa.enabled && config.mfa.privilegedRoles.includes(userRecord.role);
+    if (requiresMfa && value.mfaCode !== config.mfa.testCode) {
+      AuditStore.record({
+        actorId: userRecord.id,
+        actorRole: userRecord.role,
+        action: 'auth.login.mfa',
+        resourceType: 'session',
+        resourceId: userRecord.id,
+        outcome: 'FAILURE',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || null,
+        metadata: { reason: 'MFA validation failed' },
+      });
+      return res.status(401).json({ error: 'MFA required or invalid code' });
+    }
+
     const permissions = getPermissionsForRole(userRecord.role);
-    const accessToken  = TokenService.issueAccessToken(userRecord, permissions);
+    const accessToken  = TokenService.issueAccessToken(userRecord, permissions, {
+      mfaVerified: !requiresMfa || value.mfaCode === config.mfa.testCode,
+    });
     const refreshToken = TokenService.issueRefreshToken(userRecord.id);
     UserStore.storeRefreshToken(refreshToken, userRecord.id);
 

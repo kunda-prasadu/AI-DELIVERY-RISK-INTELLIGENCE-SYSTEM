@@ -17,6 +17,9 @@ This package provides release-readiness artifacts for the AI Delivery Risk Intel
 ```bash
 npm run check
 npm run check:compliance
+npm run check:mfa
+npm run check:dr
+npm run check:weekly-report
 npm run check:defects
 npm run check:hypercare
 npm run check:live
@@ -104,6 +107,9 @@ Release is go for production only when all of the following are true:
 
 - `npm run check` passes
 - `npm run check:compliance` passes
+- `npm run check:mfa` passes
+- `npm run check:dr` passes
+- `npm run check:weekly-report` passes
 - `npm run check:defects` passes
 - `npm run check:hypercare` passes
 - `release-test-automation` passes

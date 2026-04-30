@@ -1,0 +1,12 @@
+{
+  "reportFile": "go-live-readiness/reports/latest-weekly-report-evidence.md",
+  "requiredMarkers": [
+    "## Weekly Dispatch Run",
+    "## Delivery Metrics",
+    "## Gate Verdict"
+  ],
+  "thresholds": {
+    "minDeliverySuccessPct": 95,
+    "minRecipientsDelivered": 1
+  }
+}

@@ -6,6 +6,9 @@
   "scripts": {
     "check": "node scripts/readiness-check.js",
     "check:compliance": "node scripts/compliance-check.js",
+    "check:mfa": "node scripts/mfa-enforcement-check.js",
+    "check:dr": "node scripts/dr-backup-check.js",
+    "check:weekly-report": "node scripts/weekly-report-check.js",
     "check:defects": "node scripts/defect-burndown-check.js",
     "check:hypercare": "node scripts/hypercare-sla-check.js",
     "check:live": "node scripts/readiness-check.js --live",

@@ -55,12 +55,15 @@ write_report() {
     echo "1. ./scripts/start-local-backend-stack.sh"
     echo "2. cd go-live-readiness && npm run check"
     echo "3. cd go-live-readiness && npm run check:compliance"
-    echo "4. cd go-live-readiness && npm run check:defects"
-    echo "5. cd go-live-readiness && npm run check:hypercare"
-    echo "6. cd release-test-automation && npm test -- --silent"
-    echo "7. cd go-live-readiness && npm run check:live"
-    echo "8. cd go-live-readiness && npm run smoke"
-    echo "9. ./scripts/stop-local-backend-stack.sh"
+    echo "4. cd go-live-readiness && npm run check:mfa"
+    echo "5. cd go-live-readiness && npm run check:dr"
+    echo "6. cd go-live-readiness && npm run check:weekly-report"
+    echo "7. cd go-live-readiness && npm run check:defects"
+    echo "8. cd go-live-readiness && npm run check:hypercare"
+    echo "9. cd release-test-automation && npm test -- --silent"
+    echo "10. cd go-live-readiness && npm run check:live"
+    echo "11. cd go-live-readiness && npm run smoke"
+    echo "12. ./scripts/stop-local-backend-stack.sh"
   } >"$REPORT_FILE"
 }
 
@@ -84,6 +87,18 @@ fi
 
 if [[ "$OVERALL" == "PASS" ]]; then
   run_step "Compliance policy and evidence check" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:compliance >/dev/null" || OVERALL="FAIL"
+fi
+
+if [[ "$OVERALL" == "PASS" ]]; then
+  run_step "MFA enforcement gate" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:mfa >/dev/null" || OVERALL="FAIL"
+fi
+
+if [[ "$OVERALL" == "PASS" ]]; then
+  run_step "DR and backup gate" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:dr >/dev/null" || OVERALL="FAIL"
+fi
+
+if [[ "$OVERALL" == "PASS" ]]; then
+  run_step "Weekly report dispatch gate" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:weekly-report >/dev/null" || OVERALL="FAIL"
 fi
 
 if [[ "$OVERALL" == "PASS" ]]; then

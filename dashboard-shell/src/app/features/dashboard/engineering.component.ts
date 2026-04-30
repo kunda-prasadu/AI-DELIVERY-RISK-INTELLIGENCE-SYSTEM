@@ -1,13 +1,15 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { forkJoin, of, Subscription } from 'rxjs';
+import { catchError, finalize, timeout } from 'rxjs/operators';
 import { ProjectItem, ProjectsService } from '../../shared/services/projects.service';
 import { PortfolioAnomalySummary, ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { AgentWorkbench, AgentWorkbenchAgent, AgentWorkbenchService } from '../../shared/services/agent-workbench.service';
 import { FeedbackService, FeedbackSignal, LearningSummary, SubmitFeedbackPayload } from '../../shared/services/feedback.service';
+import { AuthService } from '../../shared/services/auth.service';
 
 interface EngineeringHotspot {
   projectId: string;
@@ -169,6 +171,131 @@ interface EngineeringHotspot {
           </mat-card-content>
         </mat-card>
       </div>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && hotspots.length">
+        <mat-card-header>
+          <mat-card-title>Multi-Agent Workbench</mat-card-title>
+          <mat-card-subtitle *ngIf="agentWorkbench">
+            {{ agentWorkbench.projectName }} · {{ agentWorkbench.team }} · Updated {{ agentWorkbench.generatedAt | date:'short' }}
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="project-switcher">
+            <button
+              mat-stroked-button
+              type="button"
+              *ngFor="let hotspot of hotspots.slice(0, 4)"
+              (click)="selectWorkbenchProject(hotspot.projectId)"
+              [disabled]="agentWorkbenchLoading"
+              [class.active]="hotspot.projectId === selectedWorkbenchProjectId"
+            >
+              {{ hotspot.projectName }}
+            </button>
+          </div>
+
+          <div class="state-content" *ngIf="agentWorkbenchLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <p>Loading agent workbench...</p>
+          </div>
+
+          <p *ngIf="!agentWorkbenchLoading && agentWorkbenchError" class="inline-error">{{ agentWorkbenchError }}</p>
+
+          <div *ngIf="!agentWorkbenchLoading && agentWorkbench">
+            <div class="stats-grid" style="margin-top:16px;">
+              <mat-card class="stat-card pressure">
+                <mat-card-content>
+                  <p class="stat-value">{{ agentWorkbench.riskScore }}</p>
+                  <p class="stat-label">Focused Risk Score</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card critical">
+                <mat-card-content>
+                  <p class="stat-value">{{ agentWorkbench.summaries.insights.severityCounts.CRITICAL }}</p>
+                  <p class="stat-label">Critical Insights</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card trend">
+                <mat-card-content>
+                  <p class="stat-value">{{ agentWorkbench.summaries.recommendations.priorityCounts.P1 }}</p>
+                  <p class="stat-label">P1 Recommendations</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card events">
+                <mat-card-content>
+                  <p class="stat-value">{{ recommendationConfidence }}</p>
+                  <p class="stat-label">Avg Recommendation Confidence</p>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <div class="watchlist-grid">
+              <mat-card class="section-card compact-card">
+                <mat-card-header>
+                  <mat-card-title>Agent Status</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="hotspot-list">
+                    <div class="hotspot-row" *ngFor="let agent of agentWorkbench.agents">
+                      <div class="hotspot-main">
+                        <span class="project-name">{{ agent.name }}</span>
+                        <p class="project-meta">{{ summarizeAgent(agent) }}</p>
+                      </div>
+                      <div class="hotspot-chips">
+                        <span class="chip" [class]="'band-' + agentStatusClass(agent.status)">{{ agent.status }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card class="section-card compact-card">
+                <mat-card-header>
+                  <mat-card-title>Next Actions</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <p *ngIf="!agentWorkbench.nextActions.length">No next actions generated.</p>
+                  <ul class="watchlist" *ngIf="agentWorkbench.nextActions.length">
+                    <li *ngFor="let action of agentWorkbench.nextActions">
+                      <span>{{ action.title }}</span>
+                      <span class="watch-meta">{{ action.priority }} · {{ action.ownerRole }} · {{ action.description }}</span>
+                    </li>
+                  </ul>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <div class="watchlist-grid" style="margin-top:16px;">
+              <mat-card class="section-card compact-card">
+                <mat-card-header>
+                  <mat-card-title>Insight Preview</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <ul class="watchlist" *ngIf="agentWorkbench.previews.insights.length">
+                    <li *ngFor="let insight of agentWorkbench.previews.insights">
+                      <span>{{ insight.title }}</span>
+                      <span class="watch-meta">{{ insight.severity }} · {{ insight.domain }} · {{ insight.action }}</span>
+                    </li>
+                  </ul>
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card class="section-card compact-card">
+                <mat-card-header>
+                  <mat-card-title>Recommendation Preview</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <ul class="watchlist" *ngIf="agentWorkbench.previews.recommendations.length">
+                    <li *ngFor="let recommendation of agentWorkbench.previews.recommendations">
+                      <span>{{ recommendation.title }}</span>
+                      <span class="watch-meta">{{ recommendation.priority }} · {{ recommendation.ownerRole }} · {{ recommendation.confidence }}% confidence</span>
+                    </li>
+                  </ul>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <mat-card class="state-card" *ngIf="!loading && !errorMessage && !hotspots.length">
         <mat-card-content>
@@ -441,11 +568,34 @@ interface EngineeringHotspot {
       font-size: 12px;
       color: var(--ri-on-surface-variant);
     }
+
+    .project-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .project-switcher button.active {
+      border-color: var(--ri-primary);
+      background: rgba(25, 118, 210, 0.08);
+    }
+
+    .compact-card {
+      margin-bottom: 0;
+    }
+
+    .inline-error {
+      color: #ba1a1a;
+      margin: 8px 0 0 0;
+    }
   `],
 })
-export class EngineeringComponent implements OnInit {
+export class EngineeringComponent implements OnInit, OnDestroy {
   loading = false;
   errorMessage = '';
+  private authSubscription: Subscription | null = null;
+  private initializedForAuthenticatedSession = false;
 
   hotspots: EngineeringHotspot[] = [];
   reliabilityWatchlist: EngineeringHotspot[] = [];
@@ -458,6 +608,10 @@ export class EngineeringComponent implements OnInit {
   anomalySummary: PortfolioAnomalySummary | null = null;
   modelHealthIndex = 0;
   escalatedSignalRatio = 0;
+  agentWorkbench: AgentWorkbench | null = null;
+  agentWorkbenchLoading = false;
+  agentWorkbenchError = '';
+  selectedWorkbenchProjectId = '';
 
   // Feedback panel state
   feedbackTargetType: 'recommendation' | 'insight' | 'anomaly' | 'report' = 'recommendation';
@@ -473,12 +627,31 @@ export class EngineeringComponent implements OnInit {
   constructor(
     private projectsService: ProjectsService,
     private riskService: RiskService,
+    private agentWorkbenchService: AgentWorkbenchService,
     private feedbackService: FeedbackService,
+    private authService: AuthService,
   ) {}
 
   ngOnInit(): void {
-    this.loadInsights();
-    this.loadLearning();
+    this.authSubscription = this.authService.user$.subscribe((user) => {
+      if (!user) {
+        this.initializedForAuthenticatedSession = false;
+        return;
+      }
+
+      if (this.initializedForAuthenticatedSession) {
+        return;
+      }
+
+      this.initializedForAuthenticatedSession = true;
+      this.loadInsights();
+      this.loadLearning();
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.authSubscription?.unsubscribe();
+    this.authSubscription = null;
   }
 
   loadInsights(): void {
@@ -487,15 +660,19 @@ export class EngineeringComponent implements OnInit {
 
     forkJoin({
       projects: this.projectsService.getProjects({ status: 'active' }).pipe(
+        timeout(5000),
         catchError(() => of({ projects: [], total: 0 }))
       ),
       riskScores: this.riskService.refreshRiskScores().pipe(
+        timeout(5000),
         catchError(() => of([] as RiskScore[]))
       ),
       anomalies: this.riskService.getPortfolioAnomalies().pipe(
+        timeout(5000),
         catchError(() => of([] as ProjectAnomaly[]))
       ),
       anomalySummary: this.riskService.getPortfolioAnomalySummary().pipe(
+        timeout(5000),
         catchError(() => of(null))
       ),
     })
@@ -552,6 +729,23 @@ export class EngineeringComponent implements OnInit {
     this.anomalySummary = anomalySummary;
     this.computeModelMonitoringStats();
 
+    if (this.hotspots.length) {
+      this.loadAgentWorkbench(this.hotspots[0].projectId);
+    } else {
+      this.agentWorkbench = null;
+      this.agentWorkbenchError = '';
+      this.selectedWorkbenchProjectId = '';
+    }
+
+  }
+
+  get recommendationConfidence(): number {
+    if (!this.agentWorkbench?.previews.recommendations.length) {
+      return 0;
+    }
+
+    const total = this.agentWorkbench.previews.recommendations.reduce((sum, recommendation) => sum + recommendation.confidence, 0);
+    return Math.round(total / this.agentWorkbench.previews.recommendations.length);
   }
 
   private computeModelMonitoringStats(): void {
@@ -598,6 +792,61 @@ export class EngineeringComponent implements OnInit {
     const entries = Object.entries(riskScore.signals) as Array<[EngineeringHotspot['dominantSignal'], number]>;
     entries.sort((a, b) => a[1] - b[1]);
     return entries[0][0];
+  }
+
+  selectWorkbenchProject(projectId: string): void {
+    if (!projectId || projectId === this.selectedWorkbenchProjectId) {
+      return;
+    }
+
+    this.loadAgentWorkbench(projectId);
+  }
+
+  summarizeAgent(agent: AgentWorkbenchAgent): string {
+    return Object.entries(agent.summary)
+      .map(([key, value]) => `${this.toLabel(key)}: ${Array.isArray(value) ? value.join(', ') : value}`)
+      .join(' · ');
+  }
+
+  agentStatusClass(status: string): string {
+    if (status === 'ACTIVE' || status === 'READY') {
+      return 'low';
+    }
+
+    if (status === 'MONITORING' || status === 'WATCH') {
+      return 'medium';
+    }
+
+    return 'high';
+  }
+
+  private loadAgentWorkbench(projectId: string): void {
+    this.selectedWorkbenchProjectId = projectId;
+    this.agentWorkbenchLoading = true;
+    this.agentWorkbenchError = '';
+
+    this.agentWorkbenchService.getProjectAgentWorkbench(projectId, { insightLimit: 3, recommendationLimit: 3 })
+      .pipe(finalize(() => {
+        this.agentWorkbenchLoading = false;
+      }))
+      .subscribe({
+        next: ({ workbench }) => {
+          this.agentWorkbench = workbench;
+        },
+        error: (err) => {
+          console.error('Agent workbench load error:', err);
+          this.agentWorkbench = null;
+          this.agentWorkbenchError = 'Failed to load the agent workbench. Please try another project.';
+        },
+      });
+  }
+
+  private toLabel(value: string): string {
+    return value
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/[-_]/g, ' ')
+      .replace(/^./, (char) => char.toUpperCase())
+      .trim();
   }
 
   // ── Feedback Loop ──────────────────────────────────────────────────────────

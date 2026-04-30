@@ -21,4 +21,14 @@ module.exports = {
     max: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
     authMax: parseInt(process.env.AUTH_RATE_LIMIT_MAX || '10', 10),
   },
+
+  mfa: {
+    enabled: (process.env.MFA_ENABLED || 'true') === 'true',
+    privilegedRoles: (process.env.MFA_PRIVILEGED_ROLES || 'admin,director,program_manager')
+      .split(',')
+      .map((role) => role.trim())
+      .filter(Boolean),
+    // For local/test baseline; production should replace with a real TOTP/IdP flow.
+    testCode: process.env.MFA_TEST_CODE || '123456',
+  },
 };

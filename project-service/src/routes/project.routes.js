@@ -7,7 +7,13 @@ const EventStore = require('../models/event.store');
 const RiskEngine = require('../models/risk.engine');
 const InsightsEngine = require('../models/insights.engine');
 const RecommendationEngine = require('../models/recommendation.engine');
+const { buildAgentWorkbench } = require('../models/agent-workbench.engine');
+const DashboardMetrics = require('../models/dashboard-metrics.engine');
 const { authenticateJWT } = require('../middleware/auth.middleware');
+const {
+  validateAgentWorkbenchQuery,
+  auditAgentWorkbenchAccess,
+} = require('../middleware/agent-workbench.middleware');
 const { requirePermission } = require('../middleware/rbac.middleware');
 const logger = require('../middleware/logger');
 
@@ -22,6 +28,8 @@ const createProjectSchema = Joi.object({
   name:        Joi.string().min(3).max(120).required(),
   description: Joi.string().max(500).optional().default(''),
   status:      Joi.string().valid(...ProjectStore.STATUSES).optional(),
+  portfolioId: Joi.string().min(2).max(60).optional(),
+  portfolioName: Joi.string().min(2).max(120).optional(),
   team:        Joi.string().min(2).max(60).required(),
   startDate:   Joi.string().isoDate().optional(),
   targetDate:  Joi.string().isoDate().optional().allow(null),
@@ -31,7 +39,21 @@ const createProjectSchema = Joi.object({
 const filterSchema = Joi.object({
   status: Joi.string().valid(...ProjectStore.STATUSES).optional(),
   team:   Joi.string().optional(),
+  portfolioId: Joi.string().min(2).max(60).optional(),
 });
+
+const metricsFilterSchema = Joi.object({
+  portfolioId: Joi.string().min(2).max(60).optional(),
+});
+
+function getMetricsFilters(req, res) {
+  const { error, value } = metricsFilterSchema.validate(req.query, { stripUnknown: true });
+  if (error) {
+    res.status(400).json({ error: 'Invalid filter parameters', details: error.details.map(d => d.message) });
+    return null;
+  }
+  return value;
+}
 
 // ── GET /projects ──────────────────────────────────────────────────────────
 /**
@@ -260,6 +282,222 @@ router.get('/:id/recommendations/summary', requirePermission('risk:read'), (req,
     ...summary,
     generatedAt: new Date().toISOString(),
   });
+});
+
+// ── GET /projects/:id/agent-workbench ──────────────────────────────────────
+/**
+ * Return a consolidated multi-agent workbench payload for a project.
+ * Permission: risk:read
+ */
+router.get(
+  '/:id/agent-workbench',
+  requirePermission('risk:read'),
+  validateAgentWorkbenchQuery,
+  auditAgentWorkbenchAccess,
+  (req, res) => {
+    const project = ProjectStore.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const riskScore = RiskEngine.computeScore(req.params.id);
+    const insights = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+    const recommendations = RecommendationEngine.generateRecommendations(req.params.id, riskScore, insights);
+    const workbench = buildAgentWorkbench(project, riskScore, insights, recommendations, req.agentWorkbenchOptions);
+
+    return res.status(200).json({ workbench });
+  }
+);
+
+// ── GET /metrics/dashboard ────────────────────────────────────────────────
+/**
+ * Return consolidated dashboard metrics: team capacity, quality snapshot, timeline health.
+ * Permission: projects:read
+ */
+router.get('/metrics/dashboard', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const snapshot = DashboardMetrics.computeDashboardMetricsSnapshot(filters);
+    logger.info('[DashboardMetrics] Generated', { userId: req.user.id });
+    return res.status(200).json(snapshot);
+  } catch (err) {
+    logger.error('[DashboardMetrics] Generation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to generate dashboard metrics' });
+  }
+});
+
+// ── GET /metrics/team-capacity ────────────────────────────────────────────
+/**
+ * Return team-by-team capacity analysis.
+ * Permission: projects:read
+ */
+router.get('/metrics/team-capacity', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const capacity = DashboardMetrics.computeTeamCapacity(filters);
+    logger.info('[TeamCapacity] Computed', { userId: req.user.id, teamCount: capacity.teams.length });
+    return res.status(200).json(capacity);
+  } catch (err) {
+    logger.error('[TeamCapacity] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute team capacity' });
+  }
+});
+
+// ── GET /metrics/quality-snapshot ────────────────────────────────────────
+/**
+ * Return portfolio-level quality metrics snapshot.
+ * Permission: projects:read
+ */
+router.get('/metrics/quality-snapshot', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const quality = DashboardMetrics.computeQualitySnapshot(filters);
+    logger.info('[QualitySnapshot] Computed', { userId: req.user.id, projectCount: quality.projectsTracked });
+    return res.status(200).json(quality);
+  } catch (err) {
+    logger.error('[QualitySnapshot] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute quality snapshot' });
+  }
+});
+
+// ── GET /metrics/timeline-health ─────────────────────────────────────────
+/**
+ * Return timeline health and delivery forecast metrics.
+ * Permission: projects:read
+ */
+router.get('/metrics/timeline-health', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const timeline = DashboardMetrics.computeTimelineHealth(filters);
+    logger.info('[TimelineHealth] Computed', { userId: req.user.id, projectCount: timeline.projectsTracked });
+    return res.status(200).json(timeline);
+  } catch (err) {
+    logger.error('[TimelineHealth] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute timeline health' });
+  }
+});
+
+// ── GET /metrics/dependency-map ─────────────────────────────────────────
+/**
+ * Return dependency map and blockers between portfolio projects.
+ * Permission: projects:read
+ */
+router.get('/metrics/dependency-map', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const dependencyMap = DashboardMetrics.computeDependencyMap(filters);
+    logger.info('[DependencyMap] Computed', {
+      userId: req.user.id,
+      links: dependencyMap.dependencyLinks,
+      blockedProjects: dependencyMap.blockedProjects,
+    });
+    return res.status(200).json(dependencyMap);
+  } catch (err) {
+    logger.error('[DependencyMap] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute dependency map' });
+  }
+});
+
+// ── GET /metrics/release-readiness ─────────────────────────────────────
+/**
+ * Return portfolio release readiness metrics.
+ * Permission: projects:read
+ */
+router.get('/metrics/release-readiness', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const readiness = DashboardMetrics.computeReleaseReadiness(filters);
+    logger.info('[ReleaseReadiness] Computed', {
+      userId: req.user.id,
+      projectsTracked: readiness.projectsTracked,
+      blockedReleases: readiness.blockedReleases,
+    });
+    return res.status(200).json(readiness);
+  } catch (err) {
+    logger.error('[ReleaseReadiness] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute release readiness' });
+  }
+});
+
+// ── GET /metrics/budget-health ─────────────────────────────────────────
+/**
+ * Return portfolio budget health metrics.
+ * Permission: projects:read
+ */
+router.get('/metrics/budget-health', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const budgetHealth = DashboardMetrics.computeBudgetHealth(filters);
+    logger.info('[BudgetHealth] Computed', {
+      userId: req.user.id,
+      projectsTracked: budgetHealth.projectsTracked,
+      overBudgetProjects: budgetHealth.overBudgetProjects,
+    });
+    return res.status(200).json(budgetHealth);
+  } catch (err) {
+    logger.error('[BudgetHealth] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute budget health' });
+  }
+});
+
+// ── GET /metrics/recommendation-adoption ───────────────────────────────
+/**
+ * Return recommendation adoption and owner workload metrics.
+ * Permission: projects:read
+ */
+router.get('/metrics/recommendation-adoption', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const adoption = DashboardMetrics.computeRecommendationAdoption(filters);
+    logger.info('[RecommendationAdoption] Computed', {
+      userId: req.user.id,
+      projectsTracked: adoption.projectsTracked,
+      totalRecommendations: adoption.totalRecommendations,
+    });
+    return res.status(200).json(adoption);
+  } catch (err) {
+    logger.error('[RecommendationAdoption] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute recommendation adoption' });
+  }
+});
+
+// ── GET /metrics/owner-workload ────────────────────────────────────────
+/**
+ * Return recommendation owner workload concentration metrics.
+ * Permission: projects:read
+ */
+router.get('/metrics/owner-workload', requirePermission('projects:read'), (req, res) => {
+  const filters = getMetricsFilters(req, res);
+  if (!filters) return;
+
+  try {
+    const workload = DashboardMetrics.computeOwnerWorkload(filters);
+    logger.info('[OwnerWorkload] Computed', {
+      userId: req.user.id,
+      projectsTracked: workload.projectsTracked,
+      ownersTracked: workload.ownersTracked,
+    });
+    return res.status(200).json(workload);
+  } catch (err) {
+    logger.error('[OwnerWorkload] Computation failed', { error: err.message });
+    return res.status(500).json({ error: 'Failed to compute owner workload' });
+  }
 });
 
 // ── POST /projects ─────────────────────────────────────────────────────────

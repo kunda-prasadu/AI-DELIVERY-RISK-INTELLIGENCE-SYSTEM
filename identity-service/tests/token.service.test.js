@@ -23,13 +23,20 @@ describe('TokenService.issueAccessToken', () => {
 
   test('payload contains correct sub, email, role', () => {
     const permissions = getPermissionsForRole(mockUser.role);
-    const token = TokenService.issueAccessToken(mockUser, permissions);
+    const token = TokenService.issueAccessToken(mockUser, permissions, { mfaVerified: true });
     const decoded = TokenService.decode(token);
     expect(decoded.sub).toBe('user-001');
     expect(decoded.email).toBe('bob@example.com');
     expect(decoded.role).toBe(ROLES.ENGINEERING_LEAD);
     expect(Array.isArray(decoded.permissions)).toBe(true);
     expect(decoded.permissions.length).toBeGreaterThan(0);
+    expect(decoded.mfaVerified).toBe(true);
+  });
+
+  test('mfaVerified defaults to false when option omitted', () => {
+    const token = TokenService.issueAccessToken(mockUser, []);
+    const decoded = TokenService.decode(token);
+    expect(decoded.mfaVerified).toBe(false);
   });
 });
 

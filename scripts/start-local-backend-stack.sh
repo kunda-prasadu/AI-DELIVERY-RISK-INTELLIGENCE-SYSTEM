@@ -14,6 +14,9 @@ SERVICES=(
   "project-service|project-service|3002|http://127.0.0.1:3002/health"
   "observability-service|observability-service|3003|http://127.0.0.1:3003/health/live"
   "metrics-normalization-service|metrics-normalization-service|3004|http://127.0.0.1:3004/health/live"
+  "reporting-service|reporting-service|3009|http://127.0.0.1:3009/health/live"
+  "feedback-service|feedback-service|3010|http://127.0.0.1:3010/health/live"
+  "forecast-service|forecast-service|3011|http://127.0.0.1:3011/health"
   "api-gateway-service|api-gateway-service|3005|http://127.0.0.1:3005/health"
 )
 
@@ -61,7 +64,13 @@ start_service() {
   echo "START $name on port $port"
   (
     cd "$ROOT_DIR/$service_path"
-    nohup npm start >"$log_file" 2>&1 &
+    if [[ "$name" == "identity-service" ]]; then
+      AUTH_RATE_LIMIT_MAX=200 nohup npm start >"$log_file" 2>&1 &
+    elif [[ "$name" == "api-gateway-service" ]]; then
+      GATEWAY_REQUIRE_MFA=false nohup npm start >"$log_file" 2>&1 &
+    else
+      nohup npm start >"$log_file" 2>&1 &
+    fi
     echo $! >"$pid_file"
   )
 

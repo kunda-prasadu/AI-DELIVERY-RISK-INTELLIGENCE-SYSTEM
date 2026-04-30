@@ -9,6 +9,8 @@ export interface ProjectItem {
   name: string;
   description: string;
   status: ProjectStatus;
+  portfolioId?: string;
+  portfolioName?: string;
   team: string;
   startDate?: string;
   targetDate?: string | null;
@@ -33,7 +35,7 @@ export class ProjectsService {
 
   constructor(private http: HttpClient) {}
 
-  getProjects(filters?: { status?: ProjectStatus; team?: string }): Observable<ProjectsResponse> {
+  getProjects(filters?: { status?: ProjectStatus; team?: string; portfolioId?: string }): Observable<ProjectsResponse> {
     let params = new HttpParams();
 
     if (filters?.status) {
@@ -42,6 +44,10 @@ export class ProjectsService {
 
     if (filters?.team) {
       params = params.set('team', filters.team);
+    }
+
+    if (filters?.portfolioId) {
+      params = params.set('portfolioId', filters.portfolioId);
     }
 
     return this.http.get<ProjectsResponse>(this.PROJECTS_BASE, { params });

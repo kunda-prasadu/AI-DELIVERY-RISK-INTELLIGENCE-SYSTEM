@@ -24,6 +24,9 @@ Attach links or paths for each item.
 
 - Static readiness check output (`go-live-readiness` `npm run check`):
 - Compliance check output (`go-live-readiness` `npm run check:compliance`):
+- MFA enforcement check output (`go-live-readiness` `npm run check:mfa`):
+- DR and backup check output (`go-live-readiness` `npm run check:dr`):
+- Weekly report check output (`go-live-readiness` `npm run check:weekly-report`):
 - Defect burn-down output (`go-live-readiness` `npm run check:defects`):
 - Hypercare SLA output (`go-live-readiness` `npm run check:hypercare`):
 - Live readiness check output (`go-live-readiness` `npm run check:live`):
@@ -48,6 +51,9 @@ Attach links or paths for each item.
 
 - [ ] `npm run check` passed
 - [ ] `npm run check:compliance` passed
+- [ ] `npm run check:mfa` passed
+- [ ] `npm run check:dr` passed
+- [ ] `npm run check:weekly-report` passed
 - [ ] `npm run check:defects` passed
 - [ ] `npm run check:hypercare` passed
 - [ ] `npm run check:live` passed

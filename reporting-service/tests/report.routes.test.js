@@ -3,6 +3,7 @@
 const request = require('supertest');
 const app = require('../src/index');
 const store = require('../src/models/report.store');
+const dispatchStore = require('../src/models/dispatch.store');
 
 const SAMPLE_PROJECTS = [
   { id: 'p1', name: 'Alpha', riskScore: 85, status: 'at-risk' },
@@ -10,7 +11,10 @@ const SAMPLE_PROJECTS = [
   { id: 'p3', name: 'Gamma', riskScore: 10, status: 'on-track' },
 ];
 
-beforeEach(() => store.clear());
+beforeEach(() => {
+  store.clear();
+  dispatchStore.clear();
+});
 
 describe('GET /health/live', () => {
   it('returns 200 ok', async () => {
@@ -130,5 +134,60 @@ describe('GET /reports/:reportId/markdown', () => {
   it('returns 404 markdown for unknown id', async () => {
     const res = await request(app).get('/reports/bad-id/markdown');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /reports/dispatch-weekly', () => {
+  it('creates a weekly dispatch and report', async () => {
+    const res = await request(app)
+      .post('/reports/dispatch-weekly')
+      .send({
+        requestedBy: 'ops@example.com',
+        recipients: ['pm@example.com', 'director@example.com'],
+        projects: SAMPLE_PROJECTS,
+        openInsights: 8,
+        openRecommendations: 3,
+        anomalyCount: 2,
+        deliverySuccessRatePct: 100,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.dispatch.dispatchId).toBeDefined();
+    expect(res.body.dispatch.status).toBe('PASS');
+    expect(res.body.dispatch.recipientsDelivered).toBe(2);
+    expect(res.body.report.reportId).toBeDefined();
+  });
+
+  it('returns 400 when recipients are missing', async () => {
+    const res = await request(app)
+      .post('/reports/dispatch-weekly')
+      .send({ requestedBy: 'ops@example.com' });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('GET /reports/dispatches', () => {
+  it('lists dispatch runs newest first', async () => {
+    await request(app)
+      .post('/reports/dispatch-weekly')
+      .send({
+        requestedBy: 'ops@example.com',
+        recipients: ['pm@example.com'],
+        deliverySuccessRatePct: 100,
+      });
+
+    await request(app)
+      .post('/reports/dispatch-weekly')
+      .send({
+        requestedBy: 'ops@example.com',
+        recipients: ['director@example.com'],
+        deliverySuccessRatePct: 96,
+      });
+
+    const res = await request(app).get('/reports/dispatches');
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.dispatches[0].dispatchedAt >= res.body.dispatches[1].dispatchedAt).toBe(true);
   });
 });
