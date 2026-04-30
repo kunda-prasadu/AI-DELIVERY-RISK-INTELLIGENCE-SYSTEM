@@ -4,14 +4,14 @@
 - Sprint: S3
 - Report Date: 2026-04-30
 - Status: Final
-- Final Completion Commit: `TBD`
+- Final Completion Commit: `ef940f9`
 - Closeout Tag: `E209-complete-2026-04-30`
 
 ## Delivered Slices
 
 | Commit | Description |
 |--------|-------------|
-| `TBD` | feat(e209): add Action Center adoption telemetry history with persisted trend snapshots |
+| `ef940f9` | feat(e209): add Action Center adoption telemetry history with persisted trend snapshots |
 
 ## Validation Summary
 
