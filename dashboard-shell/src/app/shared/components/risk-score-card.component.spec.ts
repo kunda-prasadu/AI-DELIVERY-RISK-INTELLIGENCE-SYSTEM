@@ -114,4 +114,15 @@ describe('RiskScoreCardComponent', () => {
     expect(badge.textContent).toContain('→');
     expect(badge.textContent).toContain('Stable');
   });
+
+  it('should render trend refresh timestamp when trendLastUpdated is provided', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'stable';
+    fixture.componentInstance.trendLastUpdated = '2026-04-30T04:20:00.000Z';
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Trend refreshed');
+  });
 });

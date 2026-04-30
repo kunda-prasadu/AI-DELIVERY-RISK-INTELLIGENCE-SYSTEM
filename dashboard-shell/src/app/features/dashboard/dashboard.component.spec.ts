@@ -96,10 +96,20 @@ describe('DashboardComponent', () => {
     );
     riskServiceSpy.getProjectRiskTrend.and.callFake((projectId: string) => {
       if (projectId === 'p1') {
-        return of({ trend: 'worsening' } as any);
+        return of({
+          trend: 'worsening',
+          snapshots: [
+            { snapshotAt: '2026-04-30T04:22:00.000Z', riskScore: 82, band: 'CRITICAL', criticalCount: 4, totalEvents: 7 },
+          ],
+        } as any);
       }
       if (projectId === 'p2') {
-        return of({ trend: 'stable' } as any);
+        return of({
+          trend: 'stable',
+          snapshots: [
+            { snapshotAt: '2026-04-30T04:21:00.000Z', riskScore: 30, band: 'LOW', criticalCount: 0, totalEvents: 2 },
+          ],
+        } as any);
       }
       return of(null);
     });
@@ -136,6 +146,7 @@ describe('DashboardComponent', () => {
     expect(component.metrics.openHighRisks).toBe(1);
     expect(component.metrics.avgProbability).toBe(56);
     expect(component.projectTrendDirections['p1']).toBe('worsening');
+    expect(component.projectTrendUpdatedAt['p1']).toBe('2026-04-30T04:22:00.000Z');
     expect(compiled.textContent).toContain('Project One');
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');

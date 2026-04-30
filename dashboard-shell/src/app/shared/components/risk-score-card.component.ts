@@ -77,6 +77,10 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
             </ng-container>
           </span>
         </div>
+
+        <div class="trend-meta" *ngIf="!trendLoading && trendDirection && trendLastUpdated">
+          <small>Trend refreshed {{ trendLastUpdated | date: 'shortTime' }}</small>
+        </div>
       </mat-card-content>
     </mat-card>
   `,
@@ -181,6 +185,12 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
       justify-content: center;
     }
 
+    .trend-meta {
+      margin-top: 4px;
+      text-align: center;
+      color: var(--ri-on-surface-variant);
+    }
+
     .trend-loading-chip {
       width: 180px;
       height: 22px;
@@ -214,6 +224,7 @@ export class RiskScoreCardComponent {
   @Input() riskScore!: RiskScore;
   @Input() trendDirection: TrendDirection = null;
   @Input() trendLoading = false;
+  @Input() trendLastUpdated: string | null = null;
 
   constructor(public riskService: RiskService) {}
 

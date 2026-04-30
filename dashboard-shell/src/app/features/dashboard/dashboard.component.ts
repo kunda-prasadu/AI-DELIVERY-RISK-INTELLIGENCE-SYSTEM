@@ -123,6 +123,7 @@ interface DashboardMetrics {
               [riskScore]="risk"
               [trendLoading]="projectTrendLoading[risk.projectId] === true"
               [trendDirection]="projectTrendDirections[risk.projectId] || null"
+              [trendLastUpdated]="projectTrendUpdatedAt[risk.projectId] || null"
             ></app-risk-score-card>
           </div>
         </mat-card-content>
@@ -436,6 +437,7 @@ export class DashboardComponent implements OnInit {
   topAlerts: ProjectAlert[] = [];
   projectTrendDirections: Record<string, TrendDirection> = {};
   projectTrendLoading: Record<string, boolean> = {};
+  projectTrendUpdatedAt: Record<string, string | null> = {};
 
   constructor(
     private projectsService: ProjectsService,
@@ -514,6 +516,7 @@ export class DashboardComponent implements OnInit {
     if (!topScorecardIds.length) {
       this.projectTrendDirections = {};
       this.projectTrendLoading = {};
+      this.projectTrendUpdatedAt = {};
       return;
     }
 
@@ -521,6 +524,10 @@ export class DashboardComponent implements OnInit {
       acc[projectId] = true;
       return acc;
     }, {} as Record<string, boolean>);
+    this.projectTrendUpdatedAt = topScorecardIds.reduce((acc, projectId) => {
+      acc[projectId] = null;
+      return acc;
+    }, {} as Record<string, string | null>);
 
     const trendRequests = topScorecardIds.map((projectId) =>
       this.riskService.getProjectRiskTrend(projectId).pipe(catchError(() => of(null)))
@@ -529,14 +536,25 @@ export class DashboardComponent implements OnInit {
     forkJoin(trendRequests).subscribe((trends) => {
       const nextTrends: Record<string, TrendDirection> = {};
       const nextLoading: Record<string, boolean> = {};
+      const nextUpdatedAt: Record<string, string | null> = {};
       trends.forEach((trend, index) => {
         const projectId = topScorecardIds[index];
-        nextTrends[projectId] = (trend as ProjectRiskTrend | null)?.trend ?? 'insufficient_data';
+        const trendPayload = trend as ProjectRiskTrend | null;
+        nextTrends[projectId] = trendPayload?.trend ?? 'insufficient_data';
         nextLoading[projectId] = false;
+        nextUpdatedAt[projectId] = this.getLatestTrendSnapshotAt(trendPayload);
       });
       this.projectTrendDirections = nextTrends;
       this.projectTrendLoading = nextLoading;
+      this.projectTrendUpdatedAt = nextUpdatedAt;
     });
+  }
+
+  private getLatestTrendSnapshotAt(trend: ProjectRiskTrend | null): string | null {
+    if (!trend?.snapshots?.length) {
+      return null;
+    }
+    return trend.snapshots[trend.snapshots.length - 1].snapshotAt;
   }
 
   getAlertSeverityChipClass(alert: ProjectAlert): string {
