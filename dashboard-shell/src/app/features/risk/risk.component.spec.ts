@@ -9,6 +9,7 @@ describe('RiskComponent', () => {
   beforeEach(async () => {
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
+      'getPortfolioAnomalies',
       'getBandColor',
       'getBandBackgroundColor',
       'getRiskScores',
@@ -32,6 +33,7 @@ describe('RiskComponent', () => {
       return colors[band] || '#f0ecf9';
     });
     riskServiceSpy.getRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [RiskComponent],
@@ -60,6 +62,22 @@ describe('RiskComponent', () => {
         },
       ])
     );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(
+      of([
+        {
+          projectId: 'p-critical',
+          severity: 'CRITICAL',
+          anomalyScore: 95,
+          trend: 'regression',
+          reasons: ['critical trend is regressing compared to previous snapshot'],
+          metrics: {
+            totalEvents: 7,
+            severityCounts: { low: 0, medium: 1, high: 2, critical: 4 },
+            latestEventAt: new Date().toISOString(),
+          },
+        },
+      ] as any)
+    );
 
     const fixture = TestBed.createComponent(RiskComponent);
     fixture.detectChanges();
@@ -72,10 +90,12 @@ describe('RiskComponent', () => {
     expect(compiled.textContent).toContain('Critical Program');
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Detailed Risk Scorecards');
+    expect(compiled.textContent).toContain('Anomaly Drilldown');
   });
 
   it('should show retry state when risk service fails', () => {
     riskServiceSpy.refreshRiskScores.and.returnValue(throwError(() => new Error('risk fetch failed')));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
 
     const fixture = TestBed.createComponent(RiskComponent);
     fixture.detectChanges();

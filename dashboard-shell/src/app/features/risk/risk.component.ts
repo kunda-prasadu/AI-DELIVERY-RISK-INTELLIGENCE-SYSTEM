@@ -3,9 +3,9 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { of } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
-import { RiskScore, RiskService } from '../../shared/services/risk.service';
+import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
 import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
 
@@ -93,6 +93,27 @@ import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.
         <mat-card-content>
           <div class="risk-grid">
             <app-risk-score-card *ngFor="let score of riskScores" [riskScore]="score"></app-risk-score-card>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Anomaly Drilldown</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!topAnomalies.length">No anomaly detections are currently active.</p>
+          <div class="anomaly-list" *ngIf="topAnomalies.length">
+            <div class="anomaly-row" *ngFor="let anomaly of topAnomalies">
+              <div class="anomaly-main">
+                <span class="anomaly-project">{{ anomaly.projectId }}</span>
+                <p class="anomaly-reason">{{ anomaly.reasons[0] || 'No anomaly rationale available.' }}</p>
+                <p class="anomaly-trend">Trend: {{ anomaly.trend | titlecase }}</p>
+              </div>
+              <span class="anomaly-chip" [class]="'anomaly-' + anomaly.severity.toLowerCase()">
+                {{ anomaly.severity }} · {{ anomaly.anomalyScore }}
+              </span>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -188,10 +209,74 @@ import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 16px;
     }
+
+    .anomaly-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .anomaly-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 8px;
+      background: var(--ri-surface-container);
+    }
+
+    .anomaly-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .anomaly-project {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ri-on-surface);
+    }
+
+    .anomaly-reason,
+    .anomaly-trend {
+      margin: 0;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .anomaly-chip {
+      align-self: flex-start;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.3px;
+    }
+
+    .anomaly-critical {
+      background: #ffebee;
+      color: #ba1a1a;
+    }
+
+    .anomaly-high {
+      background: #ffe8cc;
+      color: #f57c00;
+    }
+
+    .anomaly-medium {
+      background: #fff8e1;
+      color: #f9a825;
+    }
+
+    .anomaly-low {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
   `],
 })
 export class RiskComponent implements OnInit {
   riskScores: RiskScore[] = [];
+  topAnomalies: ProjectAnomaly[] = [];
   loading = false;
   errorMessage = '';
 
@@ -205,19 +290,24 @@ export class RiskComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
-    this.riskService
-      .refreshRiskScores()
+    forkJoin({
+      risks: this.riskService.refreshRiskScores(),
+      anomalies: this.riskService.getPortfolioAnomalies(),
+    })
       .pipe(
         catchError(() => {
           this.errorMessage = 'Unable to load risk scores. Verify gateway and project service health.';
-          return of([] as RiskScore[]);
+          return of({ risks: [] as RiskScore[], anomalies: [] as ProjectAnomaly[] });
         }),
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(scores => {
-        this.riskScores = [...scores].sort((a, b) => b.score - a.score);
+      .subscribe(({ risks, anomalies }) => {
+        this.riskScores = [...risks].sort((a, b) => b.score - a.score);
+        this.topAnomalies = [...anomalies]
+          .sort((a, b) => b.anomalyScore - a.anomalyScore)
+          .slice(0, 8);
       });
   }
 
