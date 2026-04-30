@@ -5,6 +5,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RiskScore, RiskService } from '../services/risk.service';
 
+export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficient_data' | null;
+
 @Component({
   selector: 'app-risk-score-card',
   standalone: true,
@@ -58,6 +60,13 @@ import { RiskScore, RiskService } from '../services/risk.service';
         <!-- Last Updated -->
         <div class="last-updated">
           <small>Updated {{ riskScore.lastUpdated | date: 'short' }}</small>
+        </div>
+
+        <!-- Trend Direction -->
+        <div class="trend-row" *ngIf="trendDirection && trendDirection !== 'insufficient_data'">
+          <span class="trend-indicator" [class]="'trend-' + trendDirection">
+            {{ getTrendArrow() }} {{ getTrendLabel() }}
+          </span>
         </div>
       </mat-card-content>
     </mat-card>
@@ -156,21 +165,52 @@ import { RiskScore, RiskService } from '../services/risk.service';
       text-align: center;
       color: var(--ri-on-surface-variant);
     }
+
+    .trend-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .trend-indicator {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+    }
+
+    .trend-worsening { background: #ffebee; color: #ba1a1a; }
+    .trend-improving { background: #e8f5e9; color: #2e7d32; }
+    .trend-stable    { background: #fff8e1; color: #f9a825; }
   `],
 })
 export class RiskScoreCardComponent {
   @Input() riskScore!: RiskScore;
+  @Input() trendDirection: TrendDirection = null;
 
   constructor(public riskService: RiskService) {}
 
   getColor(): string {
     return this.riskService.getBandColor(this.riskScore.band);
   }
-  
-    getBadgeStyle(): any {
-      return {
-        background: this.riskService.getBandBackgroundColor(this.riskScore.band),
-        color: this.riskService.getBandColor(this.riskScore.band),
-      };
-    }
+
+  getBadgeStyle(): object {
+    return {
+      background: this.riskService.getBandBackgroundColor(this.riskScore.band),
+      color: this.riskService.getBandColor(this.riskScore.band),
+    };
   }
+
+  getTrendArrow(): string {
+    if (this.trendDirection === 'worsening') return '↑';
+    if (this.trendDirection === 'improving') return '↓';
+    return '→';
+  }
+
+  getTrendLabel(): string {
+    if (this.trendDirection === 'worsening') return 'Worsening';
+    if (this.trendDirection === 'improving') return 'Improving';
+    return 'Stable';
+  }
+}
