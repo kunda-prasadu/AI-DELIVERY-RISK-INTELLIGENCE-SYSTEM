@@ -3,19 +3,23 @@ import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
+import { AlertService } from '../../shared/services/alert.service';
 import { RiskAnomalyDetailComponent } from './risk-anomaly-detail.component';
 
 describe('RiskAnomalyDetailComponent', () => {
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
+  let alertServiceSpy: jasmine.SpyObj<AlertService>;
   let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['getProjectAnomaly', 'getProjectRiskTrend']);
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
+    alertServiceSpy = jasmine.createSpyObj<AlertService>('AlertService', ['getProjectAlerts']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
     projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 }));
     riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
+    alertServiceSpy.getProjectAlerts.and.returnValue(of(null));
 
     await TestBed.configureTestingModule({
       imports: [RiskAnomalyDetailComponent],
@@ -30,6 +34,7 @@ describe('RiskAnomalyDetailComponent', () => {
         },
         { provide: RiskService, useValue: riskServiceSpy },
         { provide: ProjectsService, useValue: projectsServiceSpy },
+        { provide: AlertService, useValue: alertServiceSpy },
         { provide: Router, useValue: routerSpy },
       ],
     }).compileComponents();
@@ -57,6 +62,23 @@ describe('RiskAnomalyDetailComponent', () => {
       } as any)
     );
     riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
+    alertServiceSpy.getProjectAlerts.and.returnValue(
+      of({
+        projectId: 'p-critical',
+        active: true,
+        severity: 'CRITICAL',
+        breachCount: 2,
+        breaches: [
+          {
+            rule: 'CRITICAL_EVENT_COUNT',
+            message: 'Critical event count exceeded threshold.',
+            actual: 6,
+            threshold: 3,
+          },
+        ],
+        evaluatedAt: new Date().toISOString(),
+      })
+    );
 
     const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
     fixture.detectChanges();
@@ -69,11 +91,14 @@ describe('RiskAnomalyDetailComponent', () => {
     expect(compiled.textContent).toContain('Recommended Next Actions');
     expect(compiled.textContent).toContain('Escalate to the delivery and engineering leads within 24 hours');
     expect(compiled.textContent).toContain('Primary Anomaly Reasons');
+    expect(compiled.textContent).toContain('Active Threshold Breaches');
+    expect(compiled.textContent).toContain('Critical event count exceeded threshold.');
   });
 
   it('should navigate back to risk page', () => {
     riskServiceSpy.getProjectAnomaly.and.returnValue(of(null));
     riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
+    alertServiceSpy.getProjectAlerts.and.returnValue(of(null));
 
     const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
     fixture.detectChanges();
@@ -111,6 +136,7 @@ describe('RiskAnomalyDetailComponent', () => {
         ],
       } as any)
     );
+    alertServiceSpy.getProjectAlerts.and.returnValue(of(null));
 
     const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
     fixture.detectChanges();

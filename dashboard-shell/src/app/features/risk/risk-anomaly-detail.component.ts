@@ -8,6 +8,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectAnomaly, ProjectRiskTrend, RiskTrendSnapshot, RiskService } from '../../shared/services/risk.service';
 import { ProjectsService } from '../../shared/services/projects.service';
+import { AlertBreach, ProjectAlert, AlertService } from '../../shared/services/alert.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 
 @Component({
@@ -133,6 +134,20 @@ import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidanc
             <div class="sparkline-labels">
               <span>Snapshot 1</span>
               <span>Snapshot {{ riskTrend.snapshots.length }}</span>
+            </div>
+          </div>
+
+          <div class="alerts-section" *ngIf="projectAlerts && projectAlerts.active">
+            <h3>Active Threshold Breaches</h3>
+            <p class="alerts-summary">
+              {{ projectAlerts.severity || 'NONE' }} severity · {{ projectAlerts.breachCount }} active breaches
+            </p>
+            <div class="alert-breach-row" *ngFor="let breach of projectAlerts.breaches">
+              <div>
+                <p class="breach-message">{{ breach.message }}</p>
+                <p class="breach-rule">Rule: {{ formatBreachRule(breach) }}</p>
+              </div>
+              <span class="breach-metric">{{ breach.actual }} / {{ breach.threshold }}</span>
             </div>
           </div>
         </mat-card-content>
@@ -376,6 +391,66 @@ import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidanc
       color: var(--ri-on-surface-variant);
       margin-top: 4px;
     }
+
+    .alerts-section {
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid #ffd8cc;
+      border-radius: 8px;
+      background: #fff8f6;
+    }
+
+    .alerts-section h3 {
+      margin: 0 0 8px 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: #7a2a00;
+    }
+
+    .alerts-summary {
+      margin: 0 0 12px 0;
+      color: #7a2a00;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .alert-breach-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 8px 0;
+      border-top: 1px solid #ffe6dd;
+    }
+
+    .alert-breach-row:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .breach-message {
+      margin: 0;
+      color: var(--ri-on-surface);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .breach-rule {
+      margin: 2px 0 0 0;
+      color: var(--ri-on-surface-variant);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .breach-metric {
+      font-size: 12px;
+      font-weight: 700;
+      color: #ba1a1a;
+      white-space: nowrap;
+    }
   `],
 })
 export class RiskAnomalyDetailComponent implements OnInit {
@@ -383,6 +458,7 @@ export class RiskAnomalyDetailComponent implements OnInit {
   projectName = '';
   anomaly: ProjectAnomaly | null = null;
   riskTrend: ProjectRiskTrend | null = null;
+  projectAlerts: ProjectAlert | null = null;
   loading = false;
   errorMessage = '';
 
@@ -390,7 +466,8 @@ export class RiskAnomalyDetailComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly riskService: RiskService,
-    private readonly projectsService: ProjectsService
+    private readonly projectsService: ProjectsService,
+    private readonly alertService: AlertService
   ) {}
 
   ngOnInit(): void {
@@ -413,17 +490,19 @@ export class RiskAnomalyDetailComponent implements OnInit {
         .getProjects()
         .pipe(catchError(() => of({ projects: [], total: 0 }))),
       trend: this.riskService.getProjectRiskTrend(this.projectId),
+      alerts: this.alertService.getProjectAlerts(this.projectId),
     })
       .pipe(
-        catchError(() => of({ anomaly: null, projects: { projects: [], total: 0 }, trend: null })),
+        catchError(() => of({ anomaly: null, projects: { projects: [], total: 0 }, trend: null, alerts: null })),
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(({ anomaly, projects, trend }) => {
+      .subscribe(({ anomaly, projects, trend, alerts }) => {
         this.projectName = projects.projects.find(project => project.id === this.projectId)?.name || '';
         this.anomaly = anomaly;
         this.riskTrend = trend;
+        this.projectAlerts = alerts;
         if (!anomaly) {
           this.errorMessage = 'Unable to load anomaly details for this project.';
         }
@@ -480,5 +559,9 @@ export class RiskAnomalyDetailComponent implements OnInit {
     if (trend === 'worsening') return '#ba1a1a';
     if (trend === 'improving') return '#2e7d32';
     return '#f9a825';
+  }
+
+  formatBreachRule(breach: AlertBreach): string {
+    return breach.rule.replace(/_/g, ' ');
   }
 }
