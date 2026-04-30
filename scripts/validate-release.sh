@@ -56,10 +56,11 @@ write_report() {
     echo "2. cd go-live-readiness && npm run check"
     echo "3. cd go-live-readiness && npm run check:compliance"
     echo "4. cd go-live-readiness && npm run check:defects"
-    echo "5. cd release-test-automation && npm test -- --silent"
-    echo "6. cd go-live-readiness && npm run check:live"
-    echo "7. cd go-live-readiness && npm run smoke"
-    echo "8. ./scripts/stop-local-backend-stack.sh"
+    echo "5. cd go-live-readiness && npm run check:hypercare"
+    echo "6. cd release-test-automation && npm test -- --silent"
+    echo "7. cd go-live-readiness && npm run check:live"
+    echo "8. cd go-live-readiness && npm run smoke"
+    echo "9. ./scripts/stop-local-backend-stack.sh"
   } >"$REPORT_FILE"
 }
 
@@ -87,6 +88,10 @@ fi
 
 if [[ "$OVERALL" == "PASS" ]]; then
   run_step "Defect burn-down gate" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:defects >/dev/null" || OVERALL="FAIL"
+fi
+
+if [[ "$OVERALL" == "PASS" ]]; then
+  run_step "Hypercare SLA gate" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:hypercare >/dev/null" || OVERALL="FAIL"
 fi
 
 if [[ "$OVERALL" == "PASS" ]]; then

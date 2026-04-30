@@ -13,6 +13,7 @@
 - Run `npm run check` in `go-live-readiness`.
 - Run `npm run check:compliance` in `go-live-readiness`.
 - Run `npm run check:defects` in `go-live-readiness`.
+- Run `npm run check:hypercare` in `go-live-readiness`.
 - Run `npm run check:live` against staging with all services running.
 - Run `npm run smoke` against the gateway in the target environment.
 - Validate `observability-service` readiness and metrics export.
@@ -39,6 +40,7 @@
 - All health endpoints are green.
 - Compliance policy and evidence checks pass.
 - Defect burn-down gate confirms no open critical defects.
+- Hypercare SLA gate confirms 2-week window and SLA adherence.
 - No Sev-1 or Sev-2 incidents open.
 - Smoke test paths succeed end-to-end.
 - Stakeholders acknowledge production availability.

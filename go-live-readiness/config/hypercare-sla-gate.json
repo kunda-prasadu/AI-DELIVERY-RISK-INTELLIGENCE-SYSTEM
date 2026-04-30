@@ -1,0 +1,22 @@
+{
+  "reportFile": "go-live-readiness/reports/latest-hypercare-sla.md",
+  "minimumWindowDays": 14,
+  "thresholds": {
+    "apiAvailabilityPct": 99.5,
+    "dashboardAvailabilityPct": 99.0,
+    "p95ApiMs": 250,
+    "p95DashboardMs": 1500,
+    "sev1Incidents": 0,
+    "sev2IncidentHours": 0
+  },
+  "requiredMarkers": [
+    "Hypercare Window (days):",
+    "API Availability (%):",
+    "Dashboard Availability (%):",
+    "API p95 (ms):",
+    "Dashboard p95 (ms):",
+    "Open Sev-1 Incidents:",
+    "Open Sev-2 Incident Hours:",
+    "SLA Adherence:"
+  ]
+}
