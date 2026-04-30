@@ -5,6 +5,7 @@
   "description": "E-110 Go-Live readiness kit for AI Delivery Risk Intelligence",
   "scripts": {
     "check": "node scripts/readiness-check.js",
+    "check:compliance": "node scripts/compliance-check.js",
     "check:live": "node scripts/readiness-check.js --live",
     "check:staging": "bash ./scripts/run-staging-checks.sh",
     "smoke": "node scripts/smoke-check.js",

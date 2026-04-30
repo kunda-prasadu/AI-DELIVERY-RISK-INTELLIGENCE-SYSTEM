@@ -11,6 +11,7 @@
 ## T-1 Day
 
 - Run `npm run check` in `go-live-readiness`.
+- Run `npm run check:compliance` in `go-live-readiness`.
 - Run `npm run check:live` against staging with all services running.
 - Run `npm run smoke` against the gateway in the target environment.
 - Validate `observability-service` readiness and metrics export.
@@ -35,6 +36,7 @@
 ## Exit Criteria
 
 - All health endpoints are green.
+- Compliance policy and evidence checks pass.
 - No Sev-1 or Sev-2 incidents open.
 - Smoke test paths succeed end-to-end.
 - Stakeholders acknowledge production availability.

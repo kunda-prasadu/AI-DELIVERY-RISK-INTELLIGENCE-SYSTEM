@@ -1,0 +1,66 @@
+[
+  {
+    "id": "SOC2-CC6",
+    "framework": "SOC2",
+    "name": "Logical access controls",
+    "policyFile": "go-live-readiness/policies/access-control-policy.md",
+    "policyMarkers": [
+      "Role-based access control",
+      "MFA requirement",
+      "Quarterly access review"
+    ],
+    "evidenceMarkers": [
+      "SOC2-CC6",
+      "Status: Complete",
+      "Owner Sign-off"
+    ]
+  },
+  {
+    "id": "SOC2-CC7",
+    "framework": "SOC2",
+    "name": "Security monitoring and incident response",
+    "policyFile": "go-live-readiness/runbooks/incident-response.md",
+    "policyMarkers": [
+      "Severity Levels",
+      "Escalation",
+      "Post-incident review"
+    ],
+    "evidenceMarkers": [
+      "SOC2-CC7",
+      "Status: Complete",
+      "Owner Sign-off"
+    ]
+  },
+  {
+    "id": "GDPR-ART5",
+    "framework": "GDPR",
+    "name": "Data minimization and retention",
+    "policyFile": "go-live-readiness/policies/data-retention-policy.md",
+    "policyMarkers": [
+      "Data minimization",
+      "Retention windows",
+      "Deletion workflow"
+    ],
+    "evidenceMarkers": [
+      "GDPR-ART5",
+      "Status: Complete",
+      "Owner Sign-off"
+    ]
+  },
+  {
+    "id": "GDPR-ART32",
+    "framework": "GDPR",
+    "name": "Security of processing",
+    "policyFile": "go-live-readiness/policies/privacy-and-security-policy.md",
+    "policyMarkers": [
+      "Encryption in transit",
+      "Encryption at rest",
+      "Access logging"
+    ],
+    "evidenceMarkers": [
+      "GDPR-ART32",
+      "Status: Complete",
+      "Owner Sign-off"
+    ]
+  }
+]

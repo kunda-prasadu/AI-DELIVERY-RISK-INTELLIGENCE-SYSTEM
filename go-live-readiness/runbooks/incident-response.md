@@ -4,6 +4,12 @@
 
 Use this runbook for production-impacting events during or after go-live.
 
+## Severity Levels
+
+- P1: Critical outage with broad customer impact.
+- P2: Major degradation with partial impact.
+- P3: Limited impact with acceptable workaround.
+
 ## First 5 Minutes
 
 - Declare severity and assign incident commander.
@@ -36,6 +42,7 @@ Use this runbook for production-impacting events during or after go-live.
 
 ## Communication
 
+- Escalation: page Incident Commander first, then Platform Lead, then Product Owner for customer updates.
 - Update stakeholders every 15 minutes until stable.
 - Record timeline, mitigations, and owner actions.
 - Announce rollback decision explicitly if triggered.
@@ -44,4 +51,4 @@ Use this runbook for production-impacting events during or after go-live.
 
 - User-facing path restored.
 - Alerts return below threshold.
-- Post-incident notes captured for retrospective.
+- Post-incident review is completed with corrective actions and owner assignment.

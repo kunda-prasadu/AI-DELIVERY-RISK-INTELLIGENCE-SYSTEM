@@ -54,10 +54,11 @@ write_report() {
     echo ""
     echo "1. ./scripts/start-local-backend-stack.sh"
     echo "2. cd go-live-readiness && npm run check"
-    echo "3. cd release-test-automation && npm test -- --silent"
-    echo "4. cd go-live-readiness && npm run check:live"
-    echo "5. cd go-live-readiness && npm run smoke"
-    echo "6. ./scripts/stop-local-backend-stack.sh"
+    echo "3. cd go-live-readiness && npm run check:compliance"
+    echo "4. cd release-test-automation && npm test -- --silent"
+    echo "5. cd go-live-readiness && npm run check:live"
+    echo "6. cd go-live-readiness && npm run smoke"
+    echo "7. ./scripts/stop-local-backend-stack.sh"
   } >"$REPORT_FILE"
 }
 
@@ -77,6 +78,10 @@ run_step "Start local backend stack" ./scripts/start-local-backend-stack.sh || O
 
 if [[ "$OVERALL" == "PASS" ]]; then
   run_step "Static readiness check" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check >/dev/null" || OVERALL="FAIL"
+fi
+
+if [[ "$OVERALL" == "PASS" ]]; then
+  run_step "Compliance policy and evidence check" bash -lc "cd '$ROOT_DIR/go-live-readiness' && npm run check:compliance >/dev/null" || OVERALL="FAIL"
 fi
 
 if [[ "$OVERALL" == "PASS" ]]; then

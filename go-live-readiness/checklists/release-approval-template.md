@@ -23,6 +23,7 @@
 Attach links or paths for each item.
 
 - Static readiness check output (`go-live-readiness` `npm run check`):
+- Compliance check output (`go-live-readiness` `npm run check:compliance`):
 - Live readiness check output (`go-live-readiness` `npm run check:live`):
 - Smoke check output (`go-live-readiness` `npm run smoke`):
 - Release rehearsal report (`go-live-readiness/reports/release-rehearsal-*.md`):
@@ -44,6 +45,7 @@ Attach links or paths for each item.
 ### GO only if all are true
 
 - [ ] `npm run check` passed
+- [ ] `npm run check:compliance` passed
 - [ ] `npm run check:live` passed
 - [ ] `npm run smoke` passed
 - [ ] `release-test-automation` passed
