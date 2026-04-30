@@ -1025,6 +1025,75 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should support keyboard shortcuts for telemetry navigation and ignore typing contexts', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 50 }, (_, index) => ({
+      timestamp: now - ((49 - index) * 30 * 60 * 1000),
+      openCount: Math.max(50 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(10 + index, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const leftEvent = new KeyboardEvent('keydown', { key: 'ArrowLeft' });
+      const leftPreventDefaultSpy = spyOn(leftEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(leftEvent);
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(1);
+      expect(leftPreventDefaultSpy).toHaveBeenCalled();
+
+      const rightEvent = new KeyboardEvent('keydown', { key: 'ArrowRight' });
+      const rightPreventDefaultSpy = spyOn(rightEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(rightEvent);
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
+      expect(rightPreventDefaultSpy).toHaveBeenCalled();
+
+      const jumpOlderEvent = new KeyboardEvent('keydown', { key: 'j' });
+      const jumpOlderPreventDefaultSpy = spyOn(jumpOlderEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(jumpOlderEvent);
+      expect(secondComponent.telemetryNavigatorOffset).toBeGreaterThan(0);
+      expect(jumpOlderPreventDefaultSpy).toHaveBeenCalled();
+
+      const jumpNewerEvent = new KeyboardEvent('keydown', { key: 'k' });
+      const jumpNewerPreventDefaultSpy = spyOn(jumpNewerEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(jumpNewerEvent);
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+      expect(jumpNewerPreventDefaultSpy).toHaveBeenCalled();
+
+      const olderPoint = secondComponent.getTelemetryNavigatorPoints()[2];
+      expect(olderPoint).toBeTruthy();
+      secondComponent.focusTelemetryPoint(olderPoint);
+      expect(secondComponent.canRecenterTelemetryToLiveEdge()).toBeTrue();
+
+      const liveEvent = new KeyboardEvent('keydown', { key: 'l' });
+      const livePreventDefaultSpy = spyOn(liveEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(liveEvent);
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
+      expect(secondComponent.canRecenterTelemetryToLiveEdge()).toBeFalse();
+      expect(livePreventDefaultSpy).toHaveBeenCalled();
+
+      const typingContextEvent = {
+        key: 'ArrowLeft',
+        target: document.createElement('input'),
+        preventDefault: jasmine.createSpy('preventDefault'),
+      } as unknown as KeyboardEvent;
+
+      secondComponent.handleTelemetryKeyboardShortcut(typingContextEvent);
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
+      expect(typingContextEvent.preventDefault).not.toHaveBeenCalled();
+      done();
+    }, 100);
+  });
+
   it('should compute signed adoption deltas for telemetry navigator snapshots', (done) => {
     const now = Date.now();
     const seed = [

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, HostListener, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -157,6 +157,9 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 {{ zoom }}x
               </button>
             </div>
+            <span style="font-size:12px;color:var(--ri-on-surface-variant);align-self:center;">
+              Shortcuts: ←/→ pan · J/K jump · L live
+            </span>
           </div>
 
           <div class="telemetry-chart-shell" *ngIf="getTelemetryWindowPoints().length >= 2; else insufficientTrendData">
@@ -1173,6 +1176,44 @@ export class ActionsComponent implements OnInit {
     URL.revokeObjectURL(url);
   }
 
+  @HostListener('window:keydown', ['$event'])
+  handleTelemetryKeyboardShortcut(event: KeyboardEvent): void {
+    if (this.shouldIgnoreTelemetryShortcutEvent(event)) {
+      return;
+    }
+
+    const key = event.key.toLowerCase();
+
+    if (event.key === 'ArrowLeft' && this.canPanTelemetryOlder()) {
+      this.panTelemetryWindow('older');
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'ArrowRight' && this.canPanTelemetryNewer()) {
+      this.panTelemetryWindow('newer');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'j' && this.canShiftTelemetryNavigatorOlder()) {
+      this.shiftTelemetryNavigator('older');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'k' && this.canShiftTelemetryNavigatorNewer()) {
+      this.shiftTelemetryNavigator('newer');
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'l' && this.canRecenterTelemetryToLiveEdge()) {
+      this.recenterTelemetryToLiveEdge();
+      event.preventDefault();
+    }
+  }
+
   canPanTelemetryOlder(): boolean {
     return this.telemetryPanOffsetSteps < this.getMaxTelemetryPanOffsetSteps();
   }
@@ -1302,6 +1343,20 @@ export class ActionsComponent implements OnInit {
     }
 
     return value;
+  }
+
+  private shouldIgnoreTelemetryShortcutEvent(event: KeyboardEvent): boolean {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return true;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (!target) {
+      return false;
+    }
+
+    const tagName = target.tagName;
+    return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
   }
 
   buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
