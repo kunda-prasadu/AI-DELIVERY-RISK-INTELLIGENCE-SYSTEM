@@ -246,15 +246,17 @@ type TelemetryWindow = '1h' | '24h' | '7d';
             <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
               <div style="display:flex;gap:8px;">
+                <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorContinuousMode()">Continuous {{ telemetryNavigatorContinuousMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
               </div>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <div [style.display]="'flex'" [style.gap.px]="8" [style.flex-wrap]="telemetryNavigatorContinuousMode ? 'nowrap' : 'wrap'" [style.overflow-x]="telemetryNavigatorContinuousMode ? 'auto' : 'visible'" [style.padding-bottom.px]="telemetryNavigatorContinuousMode ? 4 : 0">
               <button
                 *ngFor="let point of getTelemetryNavigatorPoints()"
                 mat-stroked-button
                 type="button"
+                style="flex:0 0 auto;"
                 [class.window-active]="isActiveTelemetryPoint(point)"
                 (click)="focusTelemetryPoint(point)">
                 {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}%
@@ -745,6 +747,7 @@ export class ActionsComponent implements OnInit {
   telemetryZoomLevel: TelemetryZoomLevel = 1;
   telemetryPanOffsetSteps = 0;
   telemetryNavigatorOffset = 0;
+  telemetryNavigatorContinuousMode = false;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
@@ -1034,6 +1037,7 @@ export class ActionsComponent implements OnInit {
       this.selectedTelemetryWindow = window;
       this.telemetryPanOffsetSteps = 0;
       this.telemetryNavigatorOffset = 0;
+      this.telemetryNavigatorContinuousMode = false;
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
     }
@@ -1046,6 +1050,14 @@ export class ActionsComponent implements OnInit {
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
     }
+  }
+
+  toggleTelemetryNavigatorContinuousMode(): void {
+    this.telemetryNavigatorContinuousMode = !this.telemetryNavigatorContinuousMode;
+    if (this.telemetryNavigatorContinuousMode) {
+      this.telemetryNavigatorOffset = 0;
+    }
+    this.clampTelemetryNavigatorOffset();
   }
 
   panTelemetryWindow(direction: 'older' | 'newer'): void {
@@ -1102,11 +1114,19 @@ export class ActionsComponent implements OnInit {
   }
 
   getTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
-    return this.getAllTelemetryNavigatorPoints()
-      .slice(this.telemetryNavigatorOffset, this.telemetryNavigatorOffset + this.telemetryNavigatorPageSize);
+    const points = this.getAllTelemetryNavigatorPoints();
+    if (this.telemetryNavigatorContinuousMode) {
+      return points;
+    }
+
+    return points.slice(this.telemetryNavigatorOffset, this.telemetryNavigatorOffset + this.telemetryNavigatorPageSize);
   }
 
   shiftTelemetryNavigator(direction: 'older' | 'newer'): void {
+    if (this.telemetryNavigatorContinuousMode) {
+      return;
+    }
+
     const step = direction === 'older' ? this.telemetryNavigatorPageSize : -this.telemetryNavigatorPageSize;
     this.telemetryNavigatorOffset = Math.max(
       0,
@@ -1115,10 +1135,18 @@ export class ActionsComponent implements OnInit {
   }
 
   canShiftTelemetryNavigatorOlder(): boolean {
+    if (this.telemetryNavigatorContinuousMode) {
+      return false;
+    }
+
     return this.telemetryNavigatorOffset < this.getMaxTelemetryNavigatorOffset();
   }
 
   canShiftTelemetryNavigatorNewer(): boolean {
+    if (this.telemetryNavigatorContinuousMode) {
+      return false;
+    }
+
     return this.telemetryNavigatorOffset > 0;
   }
 

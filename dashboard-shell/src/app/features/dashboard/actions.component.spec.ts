@@ -595,6 +595,42 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should expose continuous jump history mode without page stepping', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 50 }, (_, index) => ({
+      timestamp: now - ((49 - index) * 30 * 60 * 1000),
+      openCount: Math.max(50 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(5 + (index * 2), 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const pagedPoints = secondComponent.getTelemetryNavigatorPoints();
+      expect(pagedPoints.length).toBe(8);
+
+      secondComponent.toggleTelemetryNavigatorContinuousMode();
+
+      const continuousPoints = secondComponent.getTelemetryNavigatorPoints();
+      expect(continuousPoints.length).toBeGreaterThan(pagedPoints.length);
+      expect(secondComponent.canShiftTelemetryNavigatorOlder()).toBeFalse();
+      expect(secondComponent.canShiftTelemetryNavigatorNewer()).toBeFalse();
+
+      secondComponent.shiftTelemetryNavigator('older');
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+      done();
+    }, 100);
+  });
+
   it('should derive per-series rates for the active telemetry point', (done) => {
     const now = Date.now();
     const seed = [
