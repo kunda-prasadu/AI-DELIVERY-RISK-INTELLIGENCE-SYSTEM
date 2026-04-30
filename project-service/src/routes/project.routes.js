@@ -6,6 +6,7 @@ const ProjectStore = require('../models/project.store');
 const EventStore = require('../models/event.store');
 const RiskEngine = require('../models/risk.engine');
 const InsightsEngine = require('../models/insights.engine');
+const RecommendationEngine = require('../models/recommendation.engine');
 const { authenticateJWT } = require('../middleware/auth.middleware');
 const { requirePermission } = require('../middleware/rbac.middleware');
 const logger = require('../middleware/logger');
@@ -171,6 +172,92 @@ router.get('/:id/insights/summary', requirePermission('risk:read'), (req, res) =
     totalInsights: insights.length,
     severityCounts,
     domainCounts,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// ── GET /projects/:id/recommendations ──────────────────────────────────────
+/**
+ * Return prioritized recommendations generated from project insights.
+ * Permission: risk:read
+ * Query params: ?priority=P1|P2|P3, ?domain=..., ?ownerRole=..., ?page=1, ?limit=10
+ */
+router.get('/:id/recommendations', requirePermission('risk:read'), (req, res) => {
+  const project = ProjectStore.findById(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  const riskScore = RiskEngine.computeScore(req.params.id);
+  const insights = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+  let recommendations = RecommendationEngine.generateRecommendations(req.params.id, riskScore, insights);
+
+  const priority = req.query.priority;
+  if (priority) {
+    recommendations = recommendations.filter(r => r.priority === priority);
+  }
+
+  const domain = req.query.domain;
+  if (domain) {
+    recommendations = recommendations.filter(r => r.domain === domain);
+  }
+
+  const ownerRole = req.query.ownerRole;
+  if (ownerRole) {
+    recommendations = recommendations.filter(r => r.ownerRole === ownerRole);
+  }
+
+  const page = Math.max(1, parseInt(req.query.page || 1, 10));
+  const limit = Math.max(1, Math.min(50, parseInt(req.query.limit || 10, 10)));
+  const start = (page - 1) * limit;
+  const total = recommendations.length;
+  const paged = recommendations.slice(start, start + limit);
+
+  logger.info('[Recommendations] Generated', {
+    userId: req.user.id,
+    projectId: req.params.id,
+    recommendationCount: paged.length,
+    total,
+    filters: { priority, domain, ownerRole, page, limit },
+  });
+
+  return res.status(200).json({
+    projectId: req.params.id,
+    riskScore: riskScore.score,
+    band: riskScore.band,
+    recommendations: paged,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// ── GET /projects/:id/recommendations/summary ─────────────────────────────
+/**
+ * Return summary stats of generated recommendations.
+ * Permission: risk:read
+ */
+router.get('/:id/recommendations/summary', requirePermission('risk:read'), (req, res) => {
+  const project = ProjectStore.findById(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  const riskScore = RiskEngine.computeScore(req.params.id);
+  const insights = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+  const recommendations = RecommendationEngine.generateRecommendations(req.params.id, riskScore, insights);
+  const summary = RecommendationEngine.summarizeRecommendations(recommendations);
+
+  logger.info('[RecommendationsSummary] Generated', {
+    userId: req.user.id,
+    projectId: req.params.id,
+    totalRecommendations: summary.totalRecommendations,
+  });
+
+  return res.status(200).json({
+    projectId: req.params.id,
+    riskScore: riskScore.score,
+    band: riskScore.band,
+    ...summary,
     generatedAt: new Date().toISOString(),
   });
 });

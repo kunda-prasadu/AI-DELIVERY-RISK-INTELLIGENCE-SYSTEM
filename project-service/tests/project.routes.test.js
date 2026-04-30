@@ -246,6 +246,79 @@ describe('GET /projects/:id/insights/summary', () => {
   });
 });
 
+// ── GET /projects/:id/recommendations ─────────────────────────────────────
+describe('GET /projects/:id/recommendations', () => {
+  test('returns recommendations with expected fields', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/recommendations')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.recommendations)).toBe(true);
+    expect(res.body.recommendations.length).toBeGreaterThan(0);
+
+    const recommendation = res.body.recommendations[0];
+    expect(recommendation.id).toBeTruthy();
+    expect(recommendation.priority).toMatch(/^(P1|P2|P3)$/);
+    expect(recommendation.ownerRole).toBeTruthy();
+    expect(recommendation.title).toBeTruthy();
+    expect(recommendation.description).toBeTruthy();
+  });
+
+  test('supports priority filter', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/recommendations?priority=P1')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    for (const recommendation of res.body.recommendations) {
+      expect(recommendation.priority).toBe('P1');
+    }
+  });
+
+  test('supports pagination', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/recommendations?page=1&limit=2')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.page).toBe(1);
+    expect(res.body.pagination.limit).toBe(2);
+    expect(res.body.recommendations.length).toBeLessThanOrEqual(2);
+  });
+
+  test('returns 404 for unknown project', async () => {
+    const res = await request(app)
+      .get('/projects/ghost/recommendations')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
+// ── GET /projects/:id/recommendations/summary ─────────────────────────────
+describe('GET /projects/:id/recommendations/summary', () => {
+  test('returns recommendation summary stats', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/recommendations/summary')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(typeof res.body.totalRecommendations).toBe('number');
+    expect(res.body.priorityCounts).toBeTruthy();
+    expect(res.body.ownerRoleCounts).toBeTruthy();
+    expect(res.body.domainCounts).toBeTruthy();
+  });
+
+  test('returns 404 for unknown project', async () => {
+    const res = await request(app)
+      .get('/projects/ghost/recommendations/summary')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
 // ── POST /projects ─────────────────────────────────────────────────────────
 describe('POST /projects', () => {
   const newProject = {
