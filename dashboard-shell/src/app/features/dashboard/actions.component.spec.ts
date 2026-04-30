@@ -1090,6 +1090,29 @@ describe('ActionsComponent', () => {
       secondComponent.handleTelemetryKeyboardShortcut(typingContextEvent);
       expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
       expect(typingContextEvent.preventDefault).not.toHaveBeenCalled();
+
+      const helpEvent = new KeyboardEvent('keydown', { key: '?', shiftKey: true });
+      const helpPreventDefaultSpy = spyOn(helpEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(helpEvent);
+      expect(secondComponent.telemetryShortcutHelpOpen).toBeTrue();
+      expect(helpPreventDefaultSpy).toHaveBeenCalled();
+
+      const escapeEvent = new KeyboardEvent('keydown', { key: 'Escape' });
+      const escapePreventDefaultSpy = spyOn(escapeEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(escapeEvent);
+      expect(secondComponent.telemetryShortcutHelpOpen).toBeFalse();
+      expect(escapePreventDefaultSpy).toHaveBeenCalled();
+
+      const helpTypingContextEvent = {
+        key: '?',
+        shiftKey: true,
+        target: document.createElement('input'),
+        preventDefault: jasmine.createSpy('preventDefault'),
+      } as unknown as KeyboardEvent;
+
+      secondComponent.handleTelemetryKeyboardShortcut(helpTypingContextEvent);
+      expect(secondComponent.telemetryShortcutHelpOpen).toBeFalse();
+      expect(helpTypingContextEvent.preventDefault).not.toHaveBeenCalled();
       done();
     }, 100);
   });

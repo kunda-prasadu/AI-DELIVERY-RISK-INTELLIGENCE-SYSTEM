@@ -157,9 +157,19 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 {{ zoom }}x
               </button>
             </div>
+            <button mat-stroked-button type="button" (click)="toggleTelemetryShortcutHelp()">
+              {{ telemetryShortcutHelpOpen ? 'Hide' : 'Show' }} Shortcuts
+            </button>
             <span style="font-size:12px;color:var(--ri-on-surface-variant);align-self:center;">
-              Shortcuts: ←/→ pan · J/K jump · L live
+              Shortcut key: ?
             </span>
+          </div>
+
+          <div *ngIf="telemetryShortcutHelpOpen" style="margin-bottom:12px;padding:8px 10px;border:1px solid var(--ri-outline);border-radius:8px;background:var(--ri-surface);font-size:12px;color:var(--ri-on-surface-variant);display:flex;gap:10px;flex-wrap:wrap;">
+            <span><strong>Pan:</strong> ← / →</span>
+            <span><strong>Jump:</strong> J / K</span>
+            <span><strong>Live:</strong> L</span>
+            <span><strong>Close:</strong> Esc</span>
           </div>
 
           <div class="telemetry-chart-shell" *ngIf="getTelemetryWindowPoints().length >= 2; else insufficientTrendData">
@@ -780,6 +790,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
   telemetryNavigatorPinnedTimestamps: number[] = [];
+  telemetryShortcutHelpOpen = false;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
@@ -1176,6 +1187,10 @@ export class ActionsComponent implements OnInit {
     URL.revokeObjectURL(url);
   }
 
+  toggleTelemetryShortcutHelp(): void {
+    this.telemetryShortcutHelpOpen = !this.telemetryShortcutHelpOpen;
+  }
+
   @HostListener('window:keydown', ['$event'])
   handleTelemetryKeyboardShortcut(event: KeyboardEvent): void {
     if (this.shouldIgnoreTelemetryShortcutEvent(event)) {
@@ -1183,6 +1198,18 @@ export class ActionsComponent implements OnInit {
     }
 
     const key = event.key.toLowerCase();
+
+    if (key === '?' || (event.key === '/' && event.shiftKey)) {
+      this.toggleTelemetryShortcutHelp();
+      event.preventDefault();
+      return;
+    }
+
+    if (event.key === 'Escape' && this.telemetryShortcutHelpOpen) {
+      this.telemetryShortcutHelpOpen = false;
+      event.preventDefault();
+      return;
+    }
 
     if (event.key === 'ArrowLeft' && this.canPanTelemetryOlder()) {
       this.panTelemetryWindow('older');
