@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -424,7 +424,7 @@ interface DashboardMetrics {
     }
   `],
 })
-export class DashboardComponent implements OnInit {
+export class DashboardComponent implements OnInit, OnDestroy {
   private readonly MAX_TREND_RETRY_ATTEMPTS = 3;
   private readonly TREND_RETRY_BASE_MS = 1000;
   private readonly TREND_RETRY_MAX_MS = 8000;
@@ -449,6 +449,9 @@ export class DashboardComponent implements OnInit {
   projectTrendAgeStatus: Record<string, TrendAgeStatus> = {};
   projectTrendRetryAttempts: Record<string, number> = {};
   projectTrendNextRetryAt: Record<string, number> = {};
+  retryNow = Date.now();
+
+  private retryTickHandle: number | null = null;
 
   constructor(
     private projectsService: ProjectsService,
@@ -458,7 +461,12 @@ export class DashboardComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
+    this.startRetryTicker();
     this.loadDashboard();
+  }
+
+  ngOnDestroy(): void {
+    this.stopRetryTicker();
   }
 
   loadDashboard(): void {
@@ -523,10 +531,9 @@ export class DashboardComponent implements OnInit {
   }
 
   isRetryDisabled(projectId: string): boolean {
-    const now = Date.now();
     const attempts = this.projectTrendRetryAttempts[projectId] || 0;
     const nextRetryAt = this.projectTrendNextRetryAt[projectId] || 0;
-    return attempts >= this.MAX_TREND_RETRY_ATTEMPTS || now < nextRetryAt || this.projectTrendLoading[projectId] === true;
+    return attempts >= this.MAX_TREND_RETRY_ATTEMPTS || this.retryNow < nextRetryAt || this.projectTrendLoading[projectId] === true;
   }
 
   getRetryHint(projectId: string): string | null {
@@ -535,7 +542,7 @@ export class DashboardComponent implements OnInit {
       return 'Retry limit reached. Refresh dashboard to reset.';
     }
 
-    const remainingMs = (this.projectTrendNextRetryAt[projectId] || 0) - Date.now();
+    const remainingMs = (this.projectTrendNextRetryAt[projectId] || 0) - this.retryNow;
     if (remainingMs > 0) {
       return `Retry available in ${Math.ceil(remainingMs / 1000)}s`;
     }
@@ -548,7 +555,7 @@ export class DashboardComponent implements OnInit {
       return;
     }
 
-    const now = Date.now();
+    const now = this.retryNow;
     const attempts = this.projectTrendRetryAttempts[projectId] || 0;
     const nextRetryAt = this.projectTrendNextRetryAt[projectId] || 0;
     if (attempts >= this.MAX_TREND_RETRY_ATTEMPTS || now < nextRetryAt || this.projectTrendLoading[projectId]) {
@@ -680,5 +687,21 @@ export class DashboardComponent implements OnInit {
   getAlertSeverityChipClass(alert: ProjectAlert): string {
     const severity = (alert.severity || 'LOW').toLowerCase();
     return `risk-${severity}`;
+  }
+
+  private startRetryTicker(): void {
+    if (this.retryTickHandle !== null) {
+      return;
+    }
+    this.retryTickHandle = window.setInterval(() => {
+      this.retryNow = Date.now();
+    }, 1000);
+  }
+
+  private stopRetryTicker(): void {
+    if (this.retryTickHandle !== null) {
+      clearInterval(this.retryTickHandle);
+      this.retryTickHandle = null;
+    }
   }
 }

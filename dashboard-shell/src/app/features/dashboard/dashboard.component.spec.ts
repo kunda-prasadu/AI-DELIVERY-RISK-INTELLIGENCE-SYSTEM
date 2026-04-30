@@ -397,10 +397,14 @@ describe('DashboardComponent', () => {
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.componentInstance.projectTrendLoading = { p1: false };
     fixture.componentInstance.projectTrendRetryAttempts = { p1: 1 };
-    fixture.componentInstance.projectTrendNextRetryAt = { p1: Date.now() + 2_000 };
+    fixture.componentInstance.retryNow = 1_000;
+    fixture.componentInstance.projectTrendNextRetryAt = { p1: 3_000 };
 
     expect(fixture.componentInstance.isRetryDisabled('p1')).toBeTrue();
-    expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry available in');
+    expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry available in 2s');
+
+    fixture.componentInstance.retryNow = 2_100;
+    expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry available in 1s');
   });
 
   it('should report retry limit hint when max attempts reached', () => {
