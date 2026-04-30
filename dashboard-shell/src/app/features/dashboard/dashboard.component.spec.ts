@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, Subject } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
@@ -300,5 +300,31 @@ describe('DashboardComponent', () => {
     fixture.detectChanges();
 
     expect(fixture.componentInstance.projectTrendLoading['p1']).toBeFalse();
+  });
+
+  it('should render fetch-failed trend copy when trend request errors', () => {
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p1' } as any], total: 1 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          projectName: 'Project One',
+          score: 70,
+          band: 'HIGH',
+          signals: { codeVelocity: 70, quality: 70, cicd: 70, jiraVelocity: 70 },
+          lastUpdated: new Date().toISOString(),
+        },
+      ] as any)
+    );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(throwError(() => new Error('trend route failed')));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(fixture.componentInstance.projectTrendDirections['p1']).toBe('fetch_failed');
+    expect(compiled.textContent).toContain('Trend unavailable: fetch failed');
   });
 });

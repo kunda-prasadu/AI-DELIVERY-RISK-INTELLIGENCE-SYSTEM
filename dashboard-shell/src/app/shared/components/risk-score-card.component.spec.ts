@@ -79,6 +79,17 @@ describe('RiskScoreCardComponent', () => {
     expect(badge.textContent).toContain('Trend unavailable: insufficient snapshots');
   });
 
+  it('should render fetch-failed trend message', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'fetch_failed';
+    fixture.detectChanges();
+
+    const badge = fixture.nativeElement.querySelector('.trend-fetch_failed') as HTMLElement;
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain('Trend unavailable: fetch failed');
+  });
+
   it('should render worsening trend badge with ↑ arrow', () => {
     const fixture = TestBed.createComponent(RiskScoreCardComponent);
     fixture.componentInstance.riskScore = baseScore;

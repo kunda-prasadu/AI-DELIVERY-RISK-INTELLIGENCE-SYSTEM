@@ -5,7 +5,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin, of } from 'rxjs';
-import { catchError, finalize } from 'rxjs/operators';
+import { catchError, finalize, map } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { ProjectAnomaly, ProjectRiskTrend, RiskScore, RiskService } from '../../shared/services/risk.service';
 import { AlertService, ProjectAlert } from '../../shared/services/alert.service';
@@ -537,7 +537,10 @@ export class DashboardComponent implements OnInit {
     }, {} as Record<string, TrendAgeStatus>);
 
     const trendRequests = topScorecardIds.map((projectId) =>
-      this.riskService.getProjectRiskTrend(projectId).pipe(catchError(() => of(null)))
+      this.riskService.getProjectRiskTrend(projectId).pipe(
+        map((trend) => ({ trend, fetchFailed: false })),
+        catchError(() => of({ trend: null, fetchFailed: true }))
+      )
     );
 
     forkJoin(trendRequests).subscribe((trends) => {
@@ -545,9 +548,18 @@ export class DashboardComponent implements OnInit {
       const nextLoading: Record<string, boolean> = {};
       const nextUpdatedAt: Record<string, string | null> = {};
       const nextAgeStatus: Record<string, TrendAgeStatus> = {};
-      trends.forEach((trend, index) => {
+      trends.forEach((trendResult, index) => {
         const projectId = topScorecardIds[index];
-        const trendPayload = trend as ProjectRiskTrend | null;
+
+        if (trendResult.fetchFailed) {
+          nextTrends[projectId] = 'fetch_failed';
+          nextLoading[projectId] = false;
+          nextUpdatedAt[projectId] = null;
+          nextAgeStatus[projectId] = null;
+          return;
+        }
+
+        const trendPayload = trendResult.trend as ProjectRiskTrend | null;
         nextTrends[projectId] = trendPayload?.trend ?? 'insufficient_data';
         nextLoading[projectId] = false;
         const latestSnapshotAt = this.getLatestTrendSnapshotAt(trendPayload);

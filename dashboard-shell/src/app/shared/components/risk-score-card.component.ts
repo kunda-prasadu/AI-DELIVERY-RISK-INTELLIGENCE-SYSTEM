@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RiskScore, RiskService } from '../services/risk.service';
 
-export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficient_data' | null;
+export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficient_data' | 'fetch_failed' | null;
 export type TrendAgeStatus = 'fresh' | 'stale' | null;
 
 @Component({
@@ -70,11 +70,14 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
 
         <div class="trend-row" *ngIf="!trendLoading && trendDirection">
           <span class="trend-indicator" [class]="'trend-' + trendDirection">
-            <ng-container *ngIf="trendDirection !== 'insufficient_data'">
+            <ng-container *ngIf="trendDirection !== 'insufficient_data' && trendDirection !== 'fetch_failed'">
               {{ getTrendArrow() }} {{ getTrendLabel() }}
             </ng-container>
             <ng-container *ngIf="trendDirection === 'insufficient_data'">
               Trend unavailable: insufficient snapshots
+            </ng-container>
+            <ng-container *ngIf="trendDirection === 'fetch_failed'">
+              Trend unavailable: fetch failed
             </ng-container>
           </span>
         </div>
@@ -239,6 +242,7 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
     .trend-improving { background: #e8f5e9; color: #2e7d32; }
     .trend-stable    { background: #fff8e1; color: #f9a825; }
     .trend-insufficient_data { background: #f0ecf9; color: #565e74; }
+    .trend-fetch_failed { background: #ffebee; color: #ba1a1a; }
 
     @keyframes trend-loading {
       0% { background-position: 100% 50%; }
