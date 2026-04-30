@@ -17,11 +17,30 @@ export interface RiskScore {
   lastUpdated: string;
 }
 
+export interface ProjectAnomaly {
+  projectId: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  anomalyScore: number;
+  trend: 'improving' | 'stable' | 'watch' | 'regression' | 'insufficient_data';
+  reasons: string[];
+  metrics: {
+    totalEvents: number;
+    severityCounts: {
+      low: number;
+      medium: number;
+      high: number;
+      critical: number;
+    };
+    latestEventAt: string | null;
+  };
+}
+
 @Injectable({
   providedIn: 'root',
 })
 export class RiskService {
   private readonly PROJECTS_BASE = '/api/projects';
+  private readonly METRICS_BASE = '/api/metrics';
   private hasAttemptedLoad = false;
   private loading = false;
 
@@ -127,6 +146,15 @@ export class RiskService {
         this.loading = false;
       })
     );
+  }
+
+  getPortfolioAnomalies(): Observable<ProjectAnomaly[]> {
+    return this.http
+      .get<{ anomalies: ProjectAnomaly[] }>(`${this.METRICS_BASE}/anomalies`)
+      .pipe(
+        map((response) => response.anomalies || []),
+        catchError(() => of([] as ProjectAnomaly[]))
+      );
   }
 
   /**

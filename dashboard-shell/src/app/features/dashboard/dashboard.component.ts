@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
-import { RiskScore, RiskService } from '../../shared/services/risk.service';
+import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
 import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
 
@@ -130,6 +130,24 @@ interface DashboardMetrics {
             <span class="program-name">{{ risk.projectName }}</span>
             <span class="risk-chip" [class]="'risk-' + risk.band.toLowerCase()">
               {{ risk.band }} · {{ risk.score }}
+            </span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Anomaly Radar</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!topAnomalies.length">No anomaly detections are currently active.</p>
+          <div class="list-row" *ngFor="let anomaly of topAnomalies">
+            <div class="anomaly-detail">
+              <span class="program-name">{{ anomaly.projectId }}</span>
+              <p class="anomaly-reason">{{ anomaly.reasons[0] || 'No anomaly rationale available.' }}</p>
+            </div>
+            <span class="risk-chip" [class]="'risk-' + anomaly.severity.toLowerCase()">
+              {{ anomaly.severity }} · {{ anomaly.anomalyScore }}
             </span>
           </div>
         </mat-card-content>
@@ -287,6 +305,18 @@ interface DashboardMetrics {
       font-weight: 500;
     }
 
+    .anomaly-detail {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .anomaly-reason {
+      margin: 0;
+      color: var(--ri-on-surface-variant);
+      font-size: 12px;
+    }
+
     .risk-chip {
       font-size: 12px;
       font-weight: 700;
@@ -335,6 +365,7 @@ export class DashboardComponent implements OnInit {
   };
 
   topRisks: RiskScore[] = [];
+  topAnomalies: ProjectAnomaly[] = [];
 
   constructor(
     private projectsService: ProjectsService,
@@ -352,13 +383,14 @@ export class DashboardComponent implements OnInit {
     forkJoin({
       projects: this.projectsService.getProjects().pipe(catchError(() => of({ projects: [], total: 0 }))),
       risks: this.riskService.refreshRiskScores().pipe(catchError(() => of([]))),
+      anomalies: this.riskService.getPortfolioAnomalies().pipe(catchError(() => of([]))),
     })
       .pipe(
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(({ projects, risks }) => {
+      .subscribe(({ projects, risks, anomalies }) => {
         const riskScores = risks as RiskScore[];
 
         if (!projects.projects.length && !riskScores.length) {
@@ -381,6 +413,10 @@ export class DashboardComponent implements OnInit {
 
         this.topRisks = [...riskScores]
           .sort((a, b) => b.score - a.score)
+          .slice(0, 5);
+
+        this.topAnomalies = [...(anomalies as ProjectAnomaly[])]
+          .sort((a, b) => b.anomalyScore - a.anomalyScore)
           .slice(0, 5);
 
         this.lastUpdated = new Date().toLocaleString();

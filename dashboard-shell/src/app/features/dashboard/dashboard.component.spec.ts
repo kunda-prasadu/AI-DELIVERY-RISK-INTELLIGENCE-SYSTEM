@@ -12,6 +12,7 @@ describe('DashboardComponent', () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
+      'getPortfolioAnomalies',
       'getBandColor',
       'getBandBackgroundColor',
     ]);
@@ -67,6 +68,22 @@ describe('DashboardComponent', () => {
         },
       ])
     );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          severity: 'CRITICAL',
+          anomalyScore: 92,
+          trend: 'regression',
+          reasons: ['critical trend is regressing compared to previous snapshot'],
+          metrics: {
+            totalEvents: 8,
+            severityCounts: { low: 0, medium: 1, high: 2, critical: 5 },
+            latestEventAt: new Date().toISOString(),
+          },
+        },
+      ] as any)
+    );
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -80,11 +97,13 @@ describe('DashboardComponent', () => {
     expect(compiled.textContent).toContain('Project One');
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');
+    expect(compiled.textContent).toContain('Anomaly Radar');
   });
 
   it('should show unavailable state when both projects and risks are empty', () => {
     projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 }));
     riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
