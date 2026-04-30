@@ -11,6 +11,7 @@ import { ProjectsService, ProjectItem } from '../../shared/services/projects.ser
 import { InsightItem, InsightSummary, InsightsService } from '../../shared/services/insights.service';
 import { RecommendationItem, RecommendationSummary, RecommendationsService } from '../../shared/services/recommendations.service';
 import { ExecutiveReport, ReportProject, ReportingService } from '../../shared/services/reporting.service';
+import { ForecastService, PortfolioForecast, CompletionForecast, GenerateForecastPayload } from '../../shared/services/forecast.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
@@ -733,6 +734,72 @@ type RecommendationPriorityFilter = 'ALL' | 'P1' | 'P2' | 'P3';
           </div>
         </mat-card-content>
       </mat-card>
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Portfolio Forecast</mat-card-title>
+          <mat-card-subtitle>Sprint velocity trends, completion dates, and risk projections across the portfolio</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="insights-controls-row" style="margin-bottom:16px;">
+            <button mat-flat-button type="button" color="primary" (click)="generatePortfolioForecast()" [disabled]="forecastGenerating">
+              {{ forecastGenerating ? 'Generating...' : 'Generate Forecast' }}
+            </button>
+            <button mat-stroked-button type="button" (click)="loadPortfolioForecast()" [disabled]="forecastLoading">Refresh</button>
+          </div>
+
+          <div class="state-content" *ngIf="forecastLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <p>Loading forecast...</p>
+          </div>
+
+          <div class="state-content" *ngIf="!forecastLoading && forecastError">
+            <p>{{ forecastError }}</p>
+          </div>
+
+          <ng-container *ngIf="!forecastLoading && !forecastError && portfolioForecast">
+            <div class="insights-summary-row" style="margin-bottom:16px;">
+              <div class="stat"><span class="stat-value">{{ portfolioForecast.totalProjects }}</span><span class="stat-label">Total Projects</span></div>
+              <div class="stat"><span class="stat-value">{{ portfolioForecast.forecastedProjects }}</span><span class="stat-label">Forecasted</span></div>
+              <div class="stat"><span class="stat-value" style="color:#d32f2f;">{{ portfolioForecast.summary.worseningCount }}</span><span class="stat-label">Worsening Risk</span></div>
+              <div class="stat"><span class="stat-value" style="color:#2e7d32;">{{ portfolioForecast.summary.improvingCount }}</span><span class="stat-label">Improving</span></div>
+              <div class="stat"><span class="stat-value" style="color:#e65100;">{{ portfolioForecast.summary.atRiskCount }}</span><span class="stat-label">At Risk</span></div>
+            </div>
+
+            <div class="insight-list" *ngIf="portfolioForecast.completionForecasts.length; else noForecastProjects">
+              <mat-card class="action-card" *ngFor="let cf of portfolioForecast.completionForecasts">
+                <mat-card-header>
+                  <div class="action-header">
+                    <div class="project-info">
+                      <strong>{{ cf.projectName }}</strong>
+                      <span class="anomaly-id">Avg velocity: {{ cf.avgVelocity }} sp/sprint</span>
+                    </div>
+                    <mat-chip-set>
+                      <mat-chip [ngStyle]="{'background': cf.confidence === 'HIGH' ? '#e8f5e9' : cf.confidence === 'MEDIUM' ? '#fff8e1' : '#ffebee', 'color': cf.confidence === 'HIGH' ? '#2e7d32' : cf.confidence === 'MEDIUM' ? '#e65100' : '#c62828'}">
+                        {{ cf.confidence }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </div>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="insights-summary-row">
+                    <div class="stat"><span class="stat-value">{{ cf.remainingPoints }}</span><span class="stat-label">Remaining pts</span></div>
+                    <div class="stat"><span class="stat-value">{{ cf.estimatedSprintsRemaining ?? '—' }}</span><span class="stat-label">Sprints left</span></div>
+                    <div class="stat"><span class="stat-value" style="font-size:14px;">{{ cf.estimatedCompletionDate ?? 'N/A' }}</span><span class="stat-label">Est. completion</span></div>
+                    <div class="stat"><span class="stat-value">{{ cf.velocityTrend.slope > 0 ? '+' : '' }}{{ cf.velocityTrend.slope }}</span><span class="stat-label">Velocity slope</span></div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+            <ng-template #noForecastProjects>
+              <mat-card class="empty-state"><mat-card-content><p>No completion forecasts available.</p></mat-card-content></mat-card>
+            </ng-template>
+          </ng-container>
+
+          <mat-card class="empty-state" *ngIf="!forecastLoading && !forecastError && !portfolioForecast">
+            <mat-card-content><p>No portfolio forecast yet. Click "Generate Forecast" to create one.</p></mat-card-content>
+          </mat-card>
+        </mat-card-content>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -1159,12 +1226,18 @@ export class ActionsComponent implements OnInit {
   readonly telemetryNavigatorPageSizeOptions = [5, 8, 15];
   readonly telemetryNavigatorMaxPins = 20;
 
+  portfolioForecast: PortfolioForecast | null = null;
+  forecastLoading = false;
+  forecastError = '';
+  forecastGenerating = false;
+
   constructor(
     private riskService: RiskService,
     private projectsService: ProjectsService,
     private insightsService: InsightsService,
     private recommendationsService: RecommendationsService,
-    private reportingService: ReportingService
+    private reportingService: ReportingService,
+    private forecastService: ForecastService
   ) {}
 
   ngOnInit(): void {
@@ -1177,6 +1250,7 @@ export class ActionsComponent implements OnInit {
     this.syncActiveTelemetryPoint();
     this.recommendationOwnerAssignments = this.readRecommendationOwnerAssignments();
     this.loadActions();
+    this.loadPortfolioForecast();
   }
 
   loadActions(): void {
@@ -2724,6 +2798,53 @@ export class ActionsComponent implements OnInit {
       error: (err) => {
         console.error('Executive report generation error:', err);
         this.execReportGenerating = false;
+      },
+    });
+  }
+
+  loadPortfolioForecast(): void {
+    this.forecastLoading = true;
+    this.forecastError = '';
+    this.forecastService.list({ forecastType: 'PORTFOLIO' }).subscribe({
+      next: (res) => {
+        this.portfolioForecast = res.forecasts.length
+          ? (res.forecasts[0] as PortfolioForecast)
+          : null;
+        this.forecastLoading = false;
+      },
+      error: (err) => {
+        console.error('Forecast load error:', err);
+        this.forecastError = 'Failed to load portfolio forecast.';
+        this.forecastLoading = false;
+      },
+    });
+  }
+
+  generatePortfolioForecast(): void {
+    const projects = (this.insightProjects || []).map((p: ProjectItem) => ({
+      projectId: p.id,
+      projectName: p.name,
+      remainingPoints: 60,
+      sprintVelocities: [30, 32, 28, 31],
+      sprintLengthDays: 14,
+      riskHistory: [],
+    }));
+
+    if (!projects.length) {
+      return;
+    }
+
+    this.forecastGenerating = true;
+    const payload: GenerateForecastPayload = { forecastType: 'PORTFOLIO', projects };
+
+    this.forecastService.generate(payload).subscribe({
+      next: (res) => {
+        this.portfolioForecast = res as PortfolioForecast;
+        this.forecastGenerating = false;
+      },
+      error: (err) => {
+        console.error('Forecast generate error:', err);
+        this.forecastGenerating = false;
       },
     });
   }

@@ -5,6 +5,7 @@ import { ProjectsService, ProjectItem } from '../../shared/services/projects.ser
 import { InsightsService } from '../../shared/services/insights.service';
 import { RecommendationsService } from '../../shared/services/recommendations.service';
 import { ReportingService } from '../../shared/services/reporting.service';
+import { ForecastService } from '../../shared/services/forecast.service';
 import { of, throwError } from 'rxjs';
 
 describe('ActionsComponent', () => {
@@ -15,6 +16,7 @@ describe('ActionsComponent', () => {
   let mockInsightsService: any;
   let mockRecommendationsService: any;
   let mockReportingService: any;
+  let mockForecastService: any;
 
   const mockProject: ProjectItem = {
     id: 'proj-1',
@@ -141,6 +143,11 @@ describe('ActionsComponent', () => {
       ),
     };
 
+    mockForecastService = {
+      list: jasmine.createSpy('list').and.returnValue(of({ forecasts: [], total: 0 })),
+      generate: jasmine.createSpy('generate'),
+    };
+
     await TestBed.configureTestingModule({
       imports: [ActionsComponent],
       providers: [
@@ -149,6 +156,7 @@ describe('ActionsComponent', () => {
         { provide: InsightsService, useValue: mockInsightsService },
         { provide: RecommendationsService, useValue: mockRecommendationsService },
         { provide: ReportingService, useValue: mockReportingService },
+        { provide: ForecastService, useValue: mockForecastService },
       ],
     }).compileComponents();
 
@@ -1908,6 +1916,17 @@ describe('ActionsComponent', () => {
         expect(component.execReportsLoading).toBeFalse();
         done();
       }, 50);
+    }, 100);
+  });
+
+  it('should initialize portfolio forecast defaults', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      expect(mockForecastService.list).toHaveBeenCalled();
+      expect(component.portfolioForecast).toBeNull();
+      expect(component.forecastLoading).toBeFalse();
+      done();
     }, 100);
   });
 });
