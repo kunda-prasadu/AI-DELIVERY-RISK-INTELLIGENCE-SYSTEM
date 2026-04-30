@@ -269,6 +269,8 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <button mat-stroked-button type="button" (click)="pinVisibleTelemetryNavigatorPoints()" [disabled]="!canPinVisibleTelemetryNavigatorPoints()">Pin Visible</button>
+                <button mat-stroked-button type="button" (click)="clearTelemetryNavigatorPins()" [disabled]="!telemetryNavigatorPinnedTimestamps.length">Unpin All</button>
                 <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Page Size
                   <select [value]="telemetryNavigatorPageSize" (change)="setTelemetryNavigatorPageSize($any($event.target).value)" style="padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
                     <option *ngFor="let size of telemetryNavigatorPageSizeOptions" [value]="size">{{ size }}</option>
@@ -1189,6 +1191,37 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorPinnedTimestamps = [...this.telemetryNavigatorPinnedTimestamps, point.timestamp];
     }
 
+    this.persistPinnedTelemetryTimestamps();
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  canPinVisibleTelemetryNavigatorPoints(): boolean {
+    return !this.telemetryNavigatorContinuousMode && this.getTelemetryNavigatorPoints().length > 0;
+  }
+
+  pinVisibleTelemetryNavigatorPoints(): void {
+    if (!this.canPinVisibleTelemetryNavigatorPoints()) {
+      return;
+    }
+
+    const existing = new Set(this.telemetryNavigatorPinnedTimestamps);
+    for (const point of this.getTelemetryNavigatorPoints()) {
+      existing.add(point.timestamp);
+    }
+
+    this.telemetryNavigatorPinnedTimestamps = Array.from(existing);
+    this.persistPinnedTelemetryTimestamps();
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  clearTelemetryNavigatorPins(): void {
+    if (!this.telemetryNavigatorPinnedTimestamps.length) {
+      return;
+    }
+
+    this.telemetryNavigatorPinnedTimestamps = [];
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();

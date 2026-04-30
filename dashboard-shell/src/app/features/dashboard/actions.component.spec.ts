@@ -1022,6 +1022,48 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should bulk pin visible snapshots and block bulk pinning in continuous mode', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 70 }, (_, index) => ({
+      timestamp: now - ((69 - index) * 30 * 60 * 1000),
+      openCount: Math.max(70 - index, 0),
+      inProgressCount: index % 3,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const visibleTimestamps = secondComponent.getTelemetryNavigatorPoints().map((point) => point.timestamp);
+      expect(visibleTimestamps.length).toBeGreaterThan(0);
+      expect(secondComponent.canPinVisibleTelemetryNavigatorPoints()).toBeTrue();
+
+      secondComponent.pinVisibleTelemetryNavigatorPoints();
+
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBeGreaterThanOrEqual(visibleTimestamps.length);
+      expect(visibleTimestamps.every((timestamp) => secondComponent.telemetryNavigatorPinnedTimestamps.includes(timestamp))).toBeTrue();
+      expect(JSON.parse(localStorage.getItem('ri-action-telemetry-pins-v1') || '[]').length).toBeGreaterThan(0);
+
+      secondComponent.clearTelemetryNavigatorPins();
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps).toEqual([]);
+      expect(JSON.parse(localStorage.getItem('ri-action-telemetry-pins-v1') || '[]')).toEqual([]);
+
+      secondComponent.toggleTelemetryNavigatorContinuousMode();
+      expect(secondComponent.canPinVisibleTelemetryNavigatorPoints()).toBeFalse();
+      secondComponent.pinVisibleTelemetryNavigatorPoints();
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps).toEqual([]);
+      done();
+    }, 100);
+  });
+
   it('should export the current telemetry window as CSV', (done) => {
     const now = Date.now();
     const seed = [
