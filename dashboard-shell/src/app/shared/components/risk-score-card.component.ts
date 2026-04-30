@@ -63,7 +63,11 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
         </div>
 
         <!-- Trend Direction -->
-        <div class="trend-row" *ngIf="trendDirection">
+        <div class="trend-row" *ngIf="trendLoading">
+          <span class="trend-loading-chip" aria-label="Trend loading"></span>
+        </div>
+
+        <div class="trend-row" *ngIf="!trendLoading && trendDirection">
           <span class="trend-indicator" [class]="'trend-' + trendDirection">
             <ng-container *ngIf="trendDirection !== 'insufficient_data'">
               {{ getTrendArrow() }} {{ getTrendLabel() }}
@@ -177,6 +181,16 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
       justify-content: center;
     }
 
+    .trend-loading-chip {
+      width: 180px;
+      height: 22px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #eceff1 25%, #f7f9fa 37%, #eceff1 63%);
+      background-size: 400% 100%;
+      animation: trend-loading 1.3s ease-in-out infinite;
+      display: inline-block;
+    }
+
     .trend-indicator {
       font-size: 12px;
       font-weight: 700;
@@ -189,11 +203,17 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
     .trend-improving { background: #e8f5e9; color: #2e7d32; }
     .trend-stable    { background: #fff8e1; color: #f9a825; }
     .trend-insufficient_data { background: #f0ecf9; color: #565e74; }
+
+    @keyframes trend-loading {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0 50%; }
+    }
   `],
 })
 export class RiskScoreCardComponent {
   @Input() riskScore!: RiskScore;
   @Input() trendDirection: TrendDirection = null;
+  @Input() trendLoading = false;
 
   constructor(public riskService: RiskService) {}
 

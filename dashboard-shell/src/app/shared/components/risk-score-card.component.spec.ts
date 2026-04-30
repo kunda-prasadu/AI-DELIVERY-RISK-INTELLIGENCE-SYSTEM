@@ -45,6 +45,18 @@ describe('RiskScoreCardComponent', () => {
     expect(el.textContent).toContain('72');
   });
 
+  it('should render loading placeholder when trend is still loading', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendLoading = true;
+    fixture.componentInstance.trendDirection = 'worsening';
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('.trend-loading-chip')).toBeTruthy();
+    expect(el.querySelector('.trend-indicator')).toBeNull();
+  });
+
   it('should NOT render trend indicator when trendDirection is null', () => {
     const fixture = TestBed.createComponent(RiskScoreCardComponent);
     fixture.componentInstance.riskScore = baseScore;

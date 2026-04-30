@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
@@ -255,5 +255,36 @@ describe('DashboardComponent', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.textContent).toContain('Trend unavailable: insufficient snapshots');
+  });
+
+  it('should track loading state while scorecard trends are being fetched', () => {
+    const trendSubject = new Subject<any>();
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p1' } as any], total: 1 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          projectName: 'Project One',
+          score: 78,
+          band: 'HIGH',
+          signals: { codeVelocity: 75, quality: 70, cicd: 80, jiraVelocity: 74 },
+          lastUpdated: new Date().toISOString(),
+        },
+      ] as any)
+    );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(trendSubject.asObservable());
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.projectTrendLoading['p1']).toBeTrue();
+
+    trendSubject.next({ trend: 'stable' });
+    trendSubject.complete();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.projectTrendLoading['p1']).toBeFalse();
   });
 });

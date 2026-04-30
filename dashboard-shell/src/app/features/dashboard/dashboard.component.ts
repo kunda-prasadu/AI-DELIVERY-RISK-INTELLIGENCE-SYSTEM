@@ -121,6 +121,7 @@ interface DashboardMetrics {
             <app-risk-score-card
               *ngFor="let risk of topRisks.slice(0, 3)"
               [riskScore]="risk"
+              [trendLoading]="projectTrendLoading[risk.projectId] === true"
               [trendDirection]="projectTrendDirections[risk.projectId] || null"
             ></app-risk-score-card>
           </div>
@@ -434,6 +435,7 @@ export class DashboardComponent implements OnInit {
   topAnomalies: ProjectAnomaly[] = [];
   topAlerts: ProjectAlert[] = [];
   projectTrendDirections: Record<string, TrendDirection> = {};
+  projectTrendLoading: Record<string, boolean> = {};
 
   constructor(
     private projectsService: ProjectsService,
@@ -511,8 +513,14 @@ export class DashboardComponent implements OnInit {
     const topScorecardIds = risks.slice(0, 3).map((risk) => risk.projectId);
     if (!topScorecardIds.length) {
       this.projectTrendDirections = {};
+      this.projectTrendLoading = {};
       return;
     }
+
+    this.projectTrendLoading = topScorecardIds.reduce((acc, projectId) => {
+      acc[projectId] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
 
     const trendRequests = topScorecardIds.map((projectId) =>
       this.riskService.getProjectRiskTrend(projectId).pipe(catchError(() => of(null)))
@@ -520,10 +528,14 @@ export class DashboardComponent implements OnInit {
 
     forkJoin(trendRequests).subscribe((trends) => {
       const nextTrends: Record<string, TrendDirection> = {};
+      const nextLoading: Record<string, boolean> = {};
       trends.forEach((trend, index) => {
-        nextTrends[topScorecardIds[index]] = (trend as ProjectRiskTrend | null)?.trend ?? 'insufficient_data';
+        const projectId = topScorecardIds[index];
+        nextTrends[projectId] = (trend as ProjectRiskTrend | null)?.trend ?? 'insufficient_data';
+        nextLoading[projectId] = false;
       });
       this.projectTrendDirections = nextTrends;
+      this.projectTrendLoading = nextLoading;
     });
   }
 
