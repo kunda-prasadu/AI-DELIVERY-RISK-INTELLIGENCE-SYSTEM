@@ -368,4 +368,28 @@ describe('DashboardComponent', () => {
 
     expect(fixture.componentInstance.projectTrendDirections['p1']).toBe('stable');
   });
+
+  it('should not retry when project is in cooldown window', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.componentInstance.projectTrendDirections = { p1: 'fetch_failed' } as any;
+    fixture.componentInstance.projectTrendLoading = { p1: false };
+    fixture.componentInstance.projectTrendRetryAttempts = { p1: 1 };
+    fixture.componentInstance.projectTrendNextRetryAt = { p1: Date.now() + 60_000 };
+
+    fixture.componentInstance.retryProjectTrend('p1');
+
+    expect(riskServiceSpy.getProjectRiskTrend).not.toHaveBeenCalled();
+  });
+
+  it('should stop retrying after max retry attempts are reached', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.componentInstance.projectTrendDirections = { p1: 'fetch_failed' } as any;
+    fixture.componentInstance.projectTrendLoading = { p1: false };
+    fixture.componentInstance.projectTrendRetryAttempts = { p1: 3 };
+    fixture.componentInstance.projectTrendNextRetryAt = { p1: 0 };
+
+    fixture.componentInstance.retryProjectTrend('p1');
+
+    expect(riskServiceSpy.getProjectRiskTrend).not.toHaveBeenCalled();
+  });
 });

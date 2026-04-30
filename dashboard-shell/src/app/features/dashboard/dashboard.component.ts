@@ -423,6 +423,10 @@ interface DashboardMetrics {
   `],
 })
 export class DashboardComponent implements OnInit {
+  private readonly MAX_TREND_RETRY_ATTEMPTS = 3;
+  private readonly TREND_RETRY_BASE_MS = 1000;
+  private readonly TREND_RETRY_MAX_MS = 8000;
+
   loading = false;
   errorMessage = '';
   lastUpdated = '';
@@ -441,6 +445,8 @@ export class DashboardComponent implements OnInit {
   projectTrendLoading: Record<string, boolean> = {};
   projectTrendUpdatedAt: Record<string, string | null> = {};
   projectTrendAgeStatus: Record<string, TrendAgeStatus> = {};
+  projectTrendRetryAttempts: Record<string, number> = {};
+  projectTrendNextRetryAt: Record<string, number> = {};
 
   constructor(
     private projectsService: ProjectsService,
@@ -519,6 +525,13 @@ export class DashboardComponent implements OnInit {
       return;
     }
 
+    const now = Date.now();
+    const attempts = this.projectTrendRetryAttempts[projectId] || 0;
+    const nextRetryAt = this.projectTrendNextRetryAt[projectId] || 0;
+    if (attempts >= this.MAX_TREND_RETRY_ATTEMPTS || now < nextRetryAt || this.projectTrendLoading[projectId]) {
+      return;
+    }
+
     this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: true };
 
     this.riskService.getProjectRiskTrend(projectId).pipe(
@@ -526,9 +539,17 @@ export class DashboardComponent implements OnInit {
       catchError(() => of({ trend: null, fetchFailed: true }))
     ).subscribe((trendResult) => {
       if (trendResult.fetchFailed) {
+        const nextAttempt = attempts + 1;
+        const backoffMs = Math.min(
+          this.TREND_RETRY_MAX_MS,
+          this.TREND_RETRY_BASE_MS * Math.pow(2, Math.max(0, nextAttempt - 1))
+        );
+
         this.projectTrendDirections = { ...this.projectTrendDirections, [projectId]: 'fetch_failed' };
         this.projectTrendUpdatedAt = { ...this.projectTrendUpdatedAt, [projectId]: null };
         this.projectTrendAgeStatus = { ...this.projectTrendAgeStatus, [projectId]: null };
+        this.projectTrendRetryAttempts = { ...this.projectTrendRetryAttempts, [projectId]: nextAttempt };
+        this.projectTrendNextRetryAt = { ...this.projectTrendNextRetryAt, [projectId]: now + backoffMs };
         this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: false };
         return;
       }
@@ -542,6 +563,8 @@ export class DashboardComponent implements OnInit {
       };
       this.projectTrendUpdatedAt = { ...this.projectTrendUpdatedAt, [projectId]: latestSnapshotAt };
       this.projectTrendAgeStatus = { ...this.projectTrendAgeStatus, [projectId]: this.getTrendAgeStatus(latestSnapshotAt) };
+      this.projectTrendRetryAttempts = { ...this.projectTrendRetryAttempts, [projectId]: 0 };
+      this.projectTrendNextRetryAt = { ...this.projectTrendNextRetryAt, [projectId]: 0 };
       this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: false };
     });
   }
@@ -553,6 +576,8 @@ export class DashboardComponent implements OnInit {
       this.projectTrendLoading = {};
       this.projectTrendUpdatedAt = {};
       this.projectTrendAgeStatus = {};
+      this.projectTrendRetryAttempts = {};
+      this.projectTrendNextRetryAt = {};
       return;
     }
 
@@ -568,6 +593,14 @@ export class DashboardComponent implements OnInit {
       acc[projectId] = null;
       return acc;
     }, {} as Record<string, TrendAgeStatus>);
+    this.projectTrendRetryAttempts = topScorecardIds.reduce((acc, projectId) => {
+      acc[projectId] = 0;
+      return acc;
+    }, {} as Record<string, number>);
+    this.projectTrendNextRetryAt = topScorecardIds.reduce((acc, projectId) => {
+      acc[projectId] = 0;
+      return acc;
+    }, {} as Record<string, number>);
 
     const trendRequests = topScorecardIds.map((projectId) =>
       this.riskService.getProjectRiskTrend(projectId).pipe(
