@@ -87,6 +87,7 @@ router.get('/:id/risk-score', requirePermission('risk:read'), (req, res) => {
 /**
  * Return AI-style actionable insights based on risk signals.
  * Permission: risk:read
+ * Query params: ?severity=INFO|WARNING|CRITICAL, ?domain=..., ?page=1, ?limit=10
  */
 router.get('/:id/insights', requirePermission('risk:read'), (req, res) => {
   const project = ProjectStore.findById(req.params.id);
@@ -95,20 +96,81 @@ router.get('/:id/insights', requirePermission('risk:read'), (req, res) => {
   }
 
   const riskScore = RiskEngine.computeScore(req.params.id);
-  const insights  = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+  let insights  = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+
+  // Filter by severity if provided
+  const severity = req.query.severity;
+  if (severity) {
+    insights = insights.filter(i => i.severity === severity);
+  }
+
+  // Filter by domain if provided
+  const domain = req.query.domain;
+  if (domain) {
+    insights = insights.filter(i => i.domain === domain);
+  }
+
+  // Pagination
+  const page = Math.max(1, parseInt(req.query.page || 1, 10));
+  const limit = Math.max(1, Math.min(50, parseInt(req.query.limit || 10, 10)));
+  const start = (page - 1) * limit;
+  const total = insights.length;
+  const paged = insights.slice(start, start + limit);
 
   logger.info('[Insights] Generated', {
     userId: req.user.id,
     projectId: req.params.id,
-    insightCount: insights.length,
+    insightCount: paged.length,
+    total,
     band: riskScore.band,
+    filters: { severity, domain, page, limit },
   });
 
   return res.status(200).json({
     projectId:  req.params.id,
     riskScore:  riskScore.score,
     band:       riskScore.band,
-    insights,
+    insights:   paged,
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+    generatedAt: new Date().toISOString(),
+  });
+});
+
+// ── GET /projects/:id/insights/summary ──────────────────────────────────────
+/**
+ * Return summary stats of insights for a project (counts by severity/domain).
+ * Permission: risk:read
+ */
+router.get('/:id/insights/summary', requirePermission('risk:read'), (req, res) => {
+  const project = ProjectStore.findById(req.params.id);
+  if (!project) {
+    return res.status(404).json({ error: 'Project not found' });
+  }
+
+  const riskScore = RiskEngine.computeScore(req.params.id);
+  const insights  = InsightsEngine.generateInsights(req.params.id, riskScore.signals, riskScore.band);
+
+  // Calculate counts
+  const severityCounts = { INFO: 0, WARNING: 0, CRITICAL: 0 };
+  const domainCounts = {};
+  insights.forEach(i => {
+    if (severityCounts.hasOwnProperty(i.severity)) severityCounts[i.severity] += 1;
+    domainCounts[i.domain] = (domainCounts[i.domain] || 0) + 1;
+  });
+
+  logger.info('[InsightsSummary] Generated', {
+    userId: req.user.id,
+    projectId: req.params.id,
+    totalInsights: insights.length,
+  });
+
+  return res.status(200).json({
+    projectId:  req.params.id,
+    riskScore:  riskScore.score,
+    band:       riskScore.band,
+    totalInsights: insights.length,
+    severityCounts,
+    domainCounts,
     generatedAt: new Date().toISOString(),
   });
 });

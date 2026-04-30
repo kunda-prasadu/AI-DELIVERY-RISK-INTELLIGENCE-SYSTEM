@@ -142,12 +142,15 @@ describe('GET /projects/:id/insights', () => {
       .get('/projects/proj-003/insights')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
-    const { insights, band, riskScore, generatedAt } = res.body;
+    const { insights, band, riskScore, generatedAt, pagination } = res.body;
     expect(Array.isArray(insights)).toBe(true);
     expect(insights.length).toBeGreaterThan(0);
     expect(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).toContain(band);
     expect(typeof riskScore).toBe('number');
     expect(generatedAt).toBeTruthy();
+    expect(pagination).toBeTruthy();
+    expect(pagination.page).toBe(1);
+    expect(pagination.limit).toBe(10);
   });
 
   test('every insight has id, severity, title, action', async () => {
@@ -165,6 +168,79 @@ describe('GET /projects/:id/insights', () => {
   test('returns 404 for unknown project', async () => {
     const res = await request(app)
       .get('/projects/ghost/insights')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(404);
+  });
+
+  test('filters insights by severity', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/insights?severity=CRITICAL')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    for (const ins of res.body.insights) {
+      expect(ins.severity).toBe('CRITICAL');
+    }
+  });
+
+  test('filters insights by domain', async () => {
+    const res = await request(app)
+      .get('/projects/proj-002/insights?domain=codeVelocity')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    for (const ins of res.body.insights) {
+      if (ins.domain !== undefined) expect(ins.domain).toBe('codeVelocity');
+    }
+  });
+
+  test('supports pagination with page and limit', async () => {
+    const res = await request(app)
+      .get('/projects/proj-003/insights?page=1&limit=2')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.page).toBe(1);
+    expect(res.body.pagination.limit).toBe(2);
+    expect(res.body.insights.length).toBeLessThanOrEqual(2);
+  });
+
+  test('limits maximum page size to 50', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/insights?limit=200')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.pagination.limit).toBe(50);
+  });
+});
+
+// ── GET /projects/:id/insights/summary ──────────────────────────────────────
+describe('GET /projects/:id/insights/summary', () => {
+  test('returns summary with severity and domain counts', async () => {
+    const res = await request(app)
+      .get('/projects/proj-001/insights/summary')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    const { severityCounts, domainCounts, totalInsights, riskScore, band } = res.body;
+    expect(severityCounts).toBeTruthy();
+    expect(severityCounts.INFO).toBeGreaterThanOrEqual(0);
+    expect(severityCounts.WARNING).toBeGreaterThanOrEqual(0);
+    expect(severityCounts.CRITICAL).toBeGreaterThanOrEqual(0);
+    expect(typeof totalInsights).toBe('number');
+    expect(typeof riskScore).toBe('number');
+    expect(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).toContain(band);
+  });
+
+  test('domain counts keys reflect actual domains', async () => {
+    const res = await request(app)
+      .get('/projects/proj-002/insights/summary')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    const { domainCounts } = res.body;
+    const domains = Object.keys(domainCounts);
+    expect(domains.length).toBeGreaterThan(0);
+  });
+
+  test('returns 404 for unknown project', async () => {
+    const res = await request(app)
+      .get('/projects/unknown-proj/insights/summary')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });
