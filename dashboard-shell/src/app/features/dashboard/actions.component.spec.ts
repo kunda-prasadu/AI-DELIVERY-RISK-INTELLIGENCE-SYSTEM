@@ -616,7 +616,7 @@ describe('ActionsComponent', () => {
       secondComponent.setTelemetryZoom(4);
 
       const pagedPoints = secondComponent.getTelemetryNavigatorPoints();
-      expect(pagedPoints.length).toBe(8);
+      expect(pagedPoints.length).toBe(secondComponent.telemetryNavigatorPageSize);
 
       secondComponent.toggleTelemetryNavigatorContinuousMode();
 
@@ -885,6 +885,47 @@ describe('ActionsComponent', () => {
       expect(secondComponent.telemetryNavigatorMinRate).toBe(75);
       secondComponent.setTelemetryWindow('24h');
       expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      done();
+    }, 100);
+  });
+
+  it('should allow configuring telemetry navigator page size and paging step', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 70 }, (_, index) => ({
+      timestamp: now - ((69 - index) * 30 * 60 * 1000),
+      openCount: Math.max(70 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(10 + index, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const defaultPoints = secondComponent.getTelemetryNavigatorPoints();
+      expect(defaultPoints.length).toBe(secondComponent.telemetryNavigatorPageSize);
+
+      secondComponent.setTelemetryNavigatorPageSize(5);
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(5);
+      expect(secondComponent.getTelemetryNavigatorPoints().length).toBe(5);
+
+      secondComponent.shiftTelemetryNavigator('older');
+      expect(secondComponent.telemetryNavigatorOffset).toBe(5);
+
+      secondComponent.setTelemetryNavigatorPageSize(15);
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+      expect(secondComponent.getTelemetryNavigatorPoints().length).toBeLessThanOrEqual(15);
+
+      secondComponent.setTelemetryNavigatorPageSize(999);
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
       done();
     }, 100);
   });

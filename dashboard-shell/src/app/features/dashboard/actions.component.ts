@@ -253,6 +253,11 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Page Size
+                  <select [value]="telemetryNavigatorPageSize" (change)="setTelemetryNavigatorPageSize($any($event.target).value)" style="padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
+                    <option *ngFor="let size of telemetryNavigatorPageSizeOptions" [value]="size">{{ size }}</option>
+                  </select>
+                </label>
                 <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Min Rate%
                   <input type="number" min="0" max="100" [value]="telemetryNavigatorMinRate" (change)="setTelemetryNavigatorMinRate($any($event.target).value)" style="width:52px;padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
                 </label>
@@ -757,6 +762,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorOffset = 0;
   telemetryNavigatorContinuousMode = false;
   telemetryNavigatorSortOrder: TelemetryNavigatorSortOrder = 'newest';
+  telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
@@ -764,7 +770,7 @@ export class ActionsComponent implements OnInit {
     { key: 'inProgress', label: 'In Progress', color: '#ff8f00' },
   ];
   readonly telemetryZoomLevels: TelemetryZoomLevel[] = [1, 2, 4];
-  readonly telemetryNavigatorPageSize = 8;
+  readonly telemetryNavigatorPageSizeOptions = [5, 8, 15];
 
   constructor(
     private riskService: RiskService,
@@ -1081,6 +1087,17 @@ export class ActionsComponent implements OnInit {
   setTelemetryNavigatorMinRate(rate: number | string): void {
     const parsed = typeof rate === 'string' ? parseFloat(rate) : rate;
     this.telemetryNavigatorMinRate = isNaN(parsed) ? 0 : Math.max(0, Math.min(100, parsed));
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  setTelemetryNavigatorPageSize(size: number | string): void {
+    const parsed = typeof size === 'string' ? parseInt(size, 10) : size;
+    if (!this.telemetryNavigatorPageSizeOptions.includes(parsed)) {
+      return;
+    }
+
+    this.telemetryNavigatorPageSize = parsed;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
   }
