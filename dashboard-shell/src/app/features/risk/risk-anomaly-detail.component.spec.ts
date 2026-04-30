@@ -11,10 +11,11 @@ describe('RiskAnomalyDetailComponent', () => {
   let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
-    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['getProjectAnomaly']);
+    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['getProjectAnomaly', 'getProjectRiskTrend']);
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
     projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 }));
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
 
     await TestBed.configureTestingModule({
       imports: [RiskAnomalyDetailComponent],
@@ -55,6 +56,7 @@ describe('RiskAnomalyDetailComponent', () => {
         },
       } as any)
     );
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
 
     const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
     fixture.detectChanges();
@@ -71,6 +73,7 @@ describe('RiskAnomalyDetailComponent', () => {
 
   it('should navigate back to risk page', () => {
     riskServiceSpy.getProjectAnomaly.and.returnValue(of(null));
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
 
     const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
     fixture.detectChanges();
@@ -78,5 +81,45 @@ describe('RiskAnomalyDetailComponent', () => {
     fixture.componentInstance.goBack();
 
     expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk']);
+  });
+
+  it('should render sparkline when risk trend has 2+ snapshots', () => {
+    const now = new Date().toISOString();
+    riskServiceSpy.getProjectAnomaly.and.returnValue(
+      of({
+        projectId: 'p-critical',
+        severity: 'CRITICAL',
+        anomalyScore: 90,
+        trend: 'regression',
+        reasons: ['regression detected'],
+        metrics: {
+          totalEvents: 8,
+          severityCounts: { low: 0, medium: 1, high: 2, critical: 5 },
+          latestEventAt: now,
+        },
+      } as any)
+    );
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(
+      of({
+        projectId: 'p-critical',
+        window: 7,
+        trend: 'worsening',
+        deltaScore: 50,
+        snapshots: [
+          { snapshotAt: now, riskScore: 25, band: 'MEDIUM', criticalCount: 1, totalEvents: 1 },
+          { snapshotAt: now, riskScore: 75, band: 'CRITICAL', criticalCount: 3, totalEvents: 4 },
+        ],
+      } as any)
+    );
+
+    const fixture = TestBed.createComponent(RiskAnomalyDetailComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('7-Day Risk Score Trend');
+    expect(compiled.textContent).toContain('Worsening');
+    expect(compiled.textContent).toContain('+50 pts over 2 snapshots');
+    expect(compiled.querySelector('svg.sparkline')).toBeTruthy();
+    expect(compiled.querySelector('polyline')).toBeTruthy();
   });
 });

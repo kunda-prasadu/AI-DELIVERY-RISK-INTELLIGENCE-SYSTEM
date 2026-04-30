@@ -17,6 +17,22 @@ export interface RiskScore {
   lastUpdated: string;
 }
 
+export interface RiskTrendSnapshot {
+  snapshotAt: string;
+  riskScore: number;
+  band: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  criticalCount: number;
+  totalEvents: number;
+}
+
+export interface ProjectRiskTrend {
+  projectId: string;
+  window: number;
+  snapshots: RiskTrendSnapshot[];
+  trend: 'worsening' | 'improving' | 'stable' | 'insufficient_data';
+  deltaScore: number;
+}
+
 export interface ProjectAnomaly {
   projectId: string;
   severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
@@ -160,6 +176,12 @@ export class RiskService {
   getProjectAnomaly(projectId: string): Observable<ProjectAnomaly | null> {
     return this.http
       .get<ProjectAnomaly>(`${this.METRICS_BASE}/projects/${projectId}/anomalies`)
+      .pipe(catchError(() => of(null)));
+  }
+
+  getProjectRiskTrend(projectId: string): Observable<ProjectRiskTrend | null> {
+    return this.http
+      .get<ProjectRiskTrend>(`${this.METRICS_BASE}/projects/${projectId}/risk-trend`)
       .pipe(catchError(() => of(null)));
   }
 

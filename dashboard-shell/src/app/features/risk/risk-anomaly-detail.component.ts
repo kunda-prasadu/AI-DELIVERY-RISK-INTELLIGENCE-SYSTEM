@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
-import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service';
+import { ProjectAnomaly, ProjectRiskTrend, RiskTrendSnapshot, RiskService } from '../../shared/services/risk.service';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 
@@ -103,6 +103,37 @@ import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidanc
             <ul>
               <li *ngFor="let reason of anomaly.reasons">{{ reason }}</li>
             </ul>
+          </div>
+
+          <div class="trend-section" *ngIf="riskTrend && riskTrend.snapshots.length >= 2">
+            <h3>7-Day Risk Score Trend</h3>
+            <div class="sparkline-meta">
+              <span class="trend-badge" [class]="'trend-' + riskTrend.trend">{{ riskTrend.trend | titlecase }}</span>
+              <span class="trend-delta" [class]="riskTrend.deltaScore > 0 ? 'delta-up' : riskTrend.deltaScore < 0 ? 'delta-down' : ''">
+                {{ riskTrend.deltaScore > 0 ? '+' : '' }}{{ riskTrend.deltaScore }} pts over {{ riskTrend.snapshots.length }} snapshots
+              </span>
+            </div>
+            <svg class="sparkline" viewBox="0 0 220 48" aria-hidden="true">
+              <polyline
+                [attr.points]="getSparklinePath(riskTrend.snapshots)"
+                fill="none"
+                [attr.stroke]="getSparklineColor(riskTrend.trend)"
+                stroke-width="2"
+                stroke-linejoin="round"
+                stroke-linecap="round"
+              />
+              <circle
+                *ngFor="let pt of getSparklinePoints(riskTrend.snapshots)"
+                [attr.cx]="pt.x"
+                [attr.cy]="pt.y"
+                r="3"
+                [attr.fill]="getSparklineColor(riskTrend.trend)"
+              />
+            </svg>
+            <div class="sparkline-labels">
+              <span>Snapshot 1</span>
+              <span>Snapshot {{ riskTrend.snapshots.length }}</span>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -287,12 +318,71 @@ import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidanc
     .reasons-section li {
       margin-bottom: 6px;
     }
+
+    .trend-section {
+      margin-top: 18px;
+      padding: 14px;
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 8px;
+      background: white;
+    }
+
+    .trend-section h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .sparkline-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .trend-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .trend-worsening { background: #ffebee; color: #ba1a1a; }
+    .trend-improving { background: #e8f5e9; color: #2e7d32; }
+    .trend-stable    { background: #fff8e1; color: #f9a825; }
+    .trend-insufficient_data { background: #f0ecf9; color: #565e74; }
+
+    .trend-delta {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .delta-up   { color: #ba1a1a; }
+    .delta-down { color: #2e7d32; }
+
+    .sparkline {
+      width: 100%;
+      height: 48px;
+      display: block;
+    }
+
+    .sparkline-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--ri-on-surface-variant);
+      margin-top: 4px;
+    }
   `],
 })
 export class RiskAnomalyDetailComponent implements OnInit {
   projectId = '';
   projectName = '';
   anomaly: ProjectAnomaly | null = null;
+  riskTrend: ProjectRiskTrend | null = null;
   loading = false;
   errorMessage = '';
 
@@ -322,16 +412,18 @@ export class RiskAnomalyDetailComponent implements OnInit {
       projects: this.projectsService
         .getProjects()
         .pipe(catchError(() => of({ projects: [], total: 0 }))),
+      trend: this.riskService.getProjectRiskTrend(this.projectId),
     })
       .pipe(
-        catchError(() => of({ anomaly: null, projects: { projects: [], total: 0 } })),
+        catchError(() => of({ anomaly: null, projects: { projects: [], total: 0 }, trend: null })),
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(({ anomaly, projects }) => {
+      .subscribe(({ anomaly, projects, trend }) => {
         this.projectName = projects.projects.find(project => project.id === this.projectId)?.name || '';
         this.anomaly = anomaly;
+        this.riskTrend = trend;
         if (!anomaly) {
           this.errorMessage = 'Unable to load anomaly details for this project.';
         }
@@ -360,5 +452,33 @@ export class RiskAnomalyDetailComponent implements OnInit {
 
   getRecommendedActions(): string[] {
     return getRecommendedActionsForAnomaly(this.anomaly);
+  }
+
+  getSparklinePoints(snapshots: RiskTrendSnapshot[]): Array<{ x: number; y: number }> {
+    if (!snapshots.length) return [];
+    const W = 220;
+    const H = 48;
+    const pad = 8;
+    const scores = snapshots.map((s) => s.riskScore);
+    const minScore = Math.min(...scores);
+    const maxScore = Math.max(...scores);
+    const range = maxScore - minScore || 1;
+
+    return snapshots.map((s, i) => ({
+      x: snapshots.length === 1 ? W / 2 : pad + (i / (snapshots.length - 1)) * (W - pad * 2),
+      y: H - pad - ((s.riskScore - minScore) / range) * (H - pad * 2),
+    }));
+  }
+
+  getSparklinePath(snapshots: RiskTrendSnapshot[]): string {
+    return this.getSparklinePoints(snapshots)
+      .map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x},${pt.y}`)
+      .join(' ');
+  }
+
+  getSparklineColor(trend: string): string {
+    if (trend === 'worsening') return '#ba1a1a';
+    if (trend === 'improving') return '#2e7d32';
+    return '#f9a825';
   }
 }
