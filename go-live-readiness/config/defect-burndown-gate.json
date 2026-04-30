@@ -1,0 +1,16 @@
+{
+  "reportFile": "go-live-readiness/reports/latest-defect-burndown.md",
+  "thresholds": {
+    "critical": 0,
+    "blocker": 0,
+    "sev1Incidents": 0,
+    "sev2Incidents": 0
+  },
+  "requiredMarkers": [
+    "Open Critical Defects:",
+    "Open Blocker Defects:",
+    "Open Sev-1 Incidents:",
+    "Open Sev-2 Incidents:",
+    "Release Decision:"
+  ]
+}

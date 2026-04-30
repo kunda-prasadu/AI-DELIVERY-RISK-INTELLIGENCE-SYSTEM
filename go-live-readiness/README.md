@@ -17,6 +17,7 @@ This package provides release-readiness artifacts for the AI Delivery Risk Intel
 ```bash
 npm run check
 npm run check:compliance
+npm run check:defects
 npm run check:live
 npm run smoke
 npm run uat:signoff
@@ -102,6 +103,7 @@ Release is go for production only when all of the following are true:
 
 - `npm run check` passes
 - `npm run check:compliance` passes
+- `npm run check:defects` passes
 - `release-test-automation` passes
 - `npm run check:live` passes in the target environment
 - `npm run smoke` passes against the target gateway

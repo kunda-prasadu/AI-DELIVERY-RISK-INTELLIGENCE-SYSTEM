@@ -22,6 +22,7 @@
 
 - Static readiness check output (`go-live-readiness` `npm run check`): PASS (captured in rehearsal report)
 - Compliance check output (`go-live-readiness` `npm run check:compliance`): PASS (captured in latest compliance evidence)
+- Defect burn-down output (`go-live-readiness` `npm run check:defects`): PASS (captured in latest defect burn-down evidence)
 - Live readiness check output (`go-live-readiness` `npm run check:live`): PASS (captured in rehearsal report)
 - Smoke check output (`go-live-readiness` `npm run smoke`): PASS (captured in rehearsal report)
 - Release rehearsal report (`go-live-readiness/reports/release-rehearsal-*.md`): [ai-delivery-risk/go-live-readiness/reports/release-rehearsal-20260429-225748.md](../reports/release-rehearsal-20260429-225748.md)
@@ -44,6 +45,7 @@
 
 - [x] `npm run check` passed (local rehearsal)
 - [x] `npm run check:compliance` passed (local compliance evidence)
+- [x] `npm run check:defects` passed (local defect burn-down evidence)
 - [x] `npm run check:live` passed (local rehearsal)
 - [x] `npm run smoke` passed (local rehearsal)
 - [x] `release-test-automation` passed (local rehearsal)

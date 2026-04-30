@@ -6,6 +6,7 @@
   "scripts": {
     "check": "node scripts/readiness-check.js",
     "check:compliance": "node scripts/compliance-check.js",
+    "check:defects": "node scripts/defect-burndown-check.js",
     "check:live": "node scripts/readiness-check.js --live",
     "check:staging": "bash ./scripts/run-staging-checks.sh",
     "smoke": "node scripts/smoke-check.js",
