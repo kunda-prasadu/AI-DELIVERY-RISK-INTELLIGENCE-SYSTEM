@@ -4,14 +4,14 @@
 - Sprint: S6
 - Report Date: 2026-04-30
 - Status: Final
-- Final Completion Commit: TBD
+- Final Completion Commit: `e865c2a`
 - Closeout Tag: `E309-complete-2026-04-30`
 
 ## Delivered Slices
 
 | Commit | Description |
 |--------|-------------|
-| `TBD` | feat(e309): enforce defect burn-down release gate |
+| `e865c2a` | feat(e309): enforce defect burn-down release gate |
 
 ## Validation Summary
 
