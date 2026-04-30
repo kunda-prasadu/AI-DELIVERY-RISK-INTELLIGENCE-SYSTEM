@@ -263,6 +263,7 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
           <div *ngIf="getTelemetryNavigatorPoints().length" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
             <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
+              <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Pins {{ telemetryNavigatorPinnedTimestamps.length }}/{{ telemetryNavigatorMaxPins }}</span>
               <div style="display:flex;gap:8px;">
                 <button mat-stroked-button type="button" (click)="recenterTelemetryToLiveEdge()" [disabled]="!canRecenterTelemetryToLiveEdge()">Back To Live</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorContinuousMode()">Continuous {{ telemetryNavigatorContinuousMode ? 'On' : 'Off' }}</button>
@@ -280,6 +281,9 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                   <input type="number" min="0" max="100" [value]="telemetryNavigatorMinRate" (change)="setTelemetryNavigatorMinRate($any($event.target).value)" style="width:52px;padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
                 </label>
               </div>
+            </div>
+            <div *ngIf="telemetryNavigatorPinLimitMessage" style="font-size:12px;color:#b3261e;font-weight:600;">
+              {{ telemetryNavigatorPinLimitMessage }}
             </div>
             <div [style.display]="'flex'" [style.gap.px]="8" [style.flex-wrap]="telemetryNavigatorContinuousMode ? 'nowrap' : 'wrap'" [style.overflow-x]="telemetryNavigatorContinuousMode ? 'auto' : 'visible'" [style.padding-bottom.px]="telemetryNavigatorContinuousMode ? 4 : 0">
               <div
@@ -793,6 +797,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
   telemetryNavigatorPinnedTimestamps: number[] = [];
+  telemetryNavigatorPinLimitMessage = '';
   telemetryShortcutHelpOpen = false;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
@@ -801,6 +806,7 @@ export class ActionsComponent implements OnInit {
   ];
   readonly telemetryZoomLevels: TelemetryZoomLevel[] = [1, 2, 4];
   readonly telemetryNavigatorPageSizeOptions = [5, 8, 15];
+  readonly telemetryNavigatorMaxPins = 20;
 
   constructor(
     private riskService: RiskService,
@@ -811,6 +817,7 @@ export class ActionsComponent implements OnInit {
     this.adoptionTelemetry = this.readTelemetry();
     this.telemetryNavigatorPinnedTimestamps = this.readPinnedTelemetryTimestamps();
     this.prunePinnedTelemetryTimestamps();
+    this.enforceTelemetryNavigatorPinQuota();
     this.updateAdoptionDelta24h();
     this.syncActiveTelemetryPoint();
     this.loadActions();
@@ -1065,6 +1072,17 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorPinnedTimestamps = pruned;
       this.persistPinnedTelemetryTimestamps();
     }
+
+    this.enforceTelemetryNavigatorPinQuota();
+  }
+
+  private enforceTelemetryNavigatorPinQuota(): void {
+    if (this.telemetryNavigatorPinnedTimestamps.length <= this.telemetryNavigatorMaxPins) {
+      return;
+    }
+
+    this.telemetryNavigatorPinnedTimestamps = this.telemetryNavigatorPinnedTimestamps.slice(0, this.telemetryNavigatorMaxPins);
+    this.persistPinnedTelemetryTimestamps();
   }
 
   private captureTelemetrySnapshot(): void {
@@ -1187,8 +1205,12 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorPinnedTimestamps = this.telemetryNavigatorPinnedTimestamps.filter(
         (timestamp) => timestamp !== point.timestamp
       );
+      this.telemetryNavigatorPinLimitMessage = '';
     } else {
-      this.telemetryNavigatorPinnedTimestamps = [...this.telemetryNavigatorPinnedTimestamps, point.timestamp];
+      const added = this.tryAddTelemetryNavigatorPin(point.timestamp);
+      if (!added) {
+        this.telemetryNavigatorPinLimitMessage = `Pin limit reached (${this.telemetryNavigatorMaxPins}). Unpin snapshots to add more.`;
+      }
     }
 
     this.persistPinnedTelemetryTimestamps();
@@ -1197,20 +1219,52 @@ export class ActionsComponent implements OnInit {
   }
 
   canPinVisibleTelemetryNavigatorPoints(): boolean {
-    return !this.telemetryNavigatorContinuousMode && this.getTelemetryNavigatorPoints().length > 0;
+    if (this.telemetryNavigatorContinuousMode) {
+      return false;
+    }
+
+    if (this.telemetryNavigatorPinnedTimestamps.length >= this.telemetryNavigatorMaxPins) {
+      return false;
+    }
+
+    return this.getTelemetryNavigatorPoints().some((point) => !this.isTelemetryNavigatorPinned(point));
   }
 
   pinVisibleTelemetryNavigatorPoints(): void {
-    if (!this.canPinVisibleTelemetryNavigatorPoints()) {
+    if (this.telemetryNavigatorContinuousMode) {
+      this.telemetryNavigatorPinLimitMessage = 'Bulk pinning is disabled while continuous mode is on.';
       return;
     }
 
-    const existing = new Set(this.telemetryNavigatorPinnedTimestamps);
-    for (const point of this.getTelemetryNavigatorPoints()) {
-      existing.add(point.timestamp);
+    if (!this.getTelemetryNavigatorPoints().length) {
+      return;
     }
 
-    this.telemetryNavigatorPinnedTimestamps = Array.from(existing);
+    const visibleUnpinned = this.getTelemetryNavigatorPoints().filter((point) => !this.isTelemetryNavigatorPinned(point));
+    if (!visibleUnpinned.length) {
+      return;
+    }
+
+    let added = 0;
+    for (const point of visibleUnpinned) {
+      if (this.tryAddTelemetryNavigatorPin(point.timestamp)) {
+        added++;
+      } else {
+        break;
+      }
+    }
+
+    if (!added) {
+      this.telemetryNavigatorPinLimitMessage = `Pin limit reached (${this.telemetryNavigatorMaxPins}). Unpin snapshots to add more.`;
+      return;
+    }
+
+    if (added < visibleUnpinned.length) {
+      this.telemetryNavigatorPinLimitMessage = `Pinned ${added} of ${visibleUnpinned.length} visible snapshots (limit ${this.telemetryNavigatorMaxPins}).`;
+    } else {
+      this.telemetryNavigatorPinLimitMessage = '';
+    }
+
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
@@ -1222,9 +1276,23 @@ export class ActionsComponent implements OnInit {
     }
 
     this.telemetryNavigatorPinnedTimestamps = [];
+    this.telemetryNavigatorPinLimitMessage = '';
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+  }
+
+  private tryAddTelemetryNavigatorPin(timestamp: number): boolean {
+    if (this.telemetryNavigatorPinnedTimestamps.includes(timestamp)) {
+      return true;
+    }
+
+    if (this.telemetryNavigatorPinnedTimestamps.length >= this.telemetryNavigatorMaxPins) {
+      return false;
+    }
+
+    this.telemetryNavigatorPinnedTimestamps = [...this.telemetryNavigatorPinnedTimestamps, timestamp];
+    return true;
   }
 
   panTelemetryWindow(direction: 'older' | 'newer'): void {

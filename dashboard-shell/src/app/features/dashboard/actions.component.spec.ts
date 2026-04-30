@@ -1060,6 +1060,54 @@ describe('ActionsComponent', () => {
       expect(secondComponent.canPinVisibleTelemetryNavigatorPoints()).toBeFalse();
       secondComponent.pinVisibleTelemetryNavigatorPoints();
       expect(secondComponent.telemetryNavigatorPinnedTimestamps).toEqual([]);
+      expect(secondComponent.telemetryNavigatorPinLimitMessage).toContain('Bulk pinning is disabled');
+      done();
+    }, 100);
+  });
+
+  it('should enforce telemetry pin quota and warn when limit is reached', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 80 }, (_, index) => ({
+      timestamp: now - ((79 - index) * 30 * 60 * 1000),
+      openCount: Math.max(80 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+      secondComponent.setTelemetryNavigatorPageSize(15);
+
+      const pointsToPin = secondComponent.adoptionTelemetry.slice(0, secondComponent.telemetryNavigatorMaxPins);
+      pointsToPin.forEach((point) => secondComponent.toggleTelemetryNavigatorPin(point));
+
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBe(secondComponent.telemetryNavigatorMaxPins);
+
+      const overflowPoint = secondComponent.adoptionTelemetry[secondComponent.telemetryNavigatorMaxPins + 1];
+      secondComponent.toggleTelemetryNavigatorPin(overflowPoint);
+
+      expect(secondComponent.isTelemetryNavigatorPinned(overflowPoint)).toBeFalse();
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBe(secondComponent.telemetryNavigatorMaxPins);
+      expect(secondComponent.telemetryNavigatorPinLimitMessage).toContain('Pin limit reached');
+
+      secondComponent.clearTelemetryNavigatorPins();
+      expect(secondComponent.telemetryNavigatorPinLimitMessage).toBe('');
+
+      secondComponent.pinVisibleTelemetryNavigatorPoints();
+      secondComponent.shiftTelemetryNavigator('older');
+      secondComponent.pinVisibleTelemetryNavigatorPoints();
+
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBe(secondComponent.telemetryNavigatorMaxPins);
+      expect(secondComponent.telemetryNavigatorPinLimitMessage).toContain('Pinned');
+      expect(secondComponent.telemetryNavigatorPinLimitMessage).toContain('limit');
       done();
     }, 100);
   });
