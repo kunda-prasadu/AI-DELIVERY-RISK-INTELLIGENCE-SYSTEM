@@ -336,4 +336,73 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should filter telemetry points by selected window', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (8 * 24 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 0 },
+      { timestamp: now - (12 * 60 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+      { timestamp: now - (30 * 60 * 1000), openCount: 2, inProgressCount: 1, completedCount: 2, adoptionRate: 60 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      expect(secondComponent.getTelemetryWindowPoints().length).toBe(2);
+
+      secondComponent.setTelemetryWindow('24h');
+      expect(secondComponent.getTelemetryWindowPoints().length).toBe(3);
+
+      secondComponent.setTelemetryWindow('7d');
+      expect(secondComponent.getTelemetryWindowPoints().length).toBe(3);
+      done();
+    }, 100);
+  });
+
+  it('should build telemetry polyline for chart rendering', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      component.markInProgress(component.allActions[0]);
+      component.markCompleted(component.allActions[0]);
+
+      const points = component.getTelemetryWindowPoints();
+      const polyline = component.buildTelemetryPolyline(points);
+
+      if (points.length >= 2) {
+        expect(polyline.length).toBeGreaterThan(0);
+        expect(polyline.includes(',')).toBeTrue();
+      } else {
+        expect(polyline).toBe('');
+      }
+      done();
+    }, 100);
+  });
+
+  it('should compute window start and peak rates from filtered telemetry', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (60 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 20 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+      expect(secondComponent.getTelemetryWindowStartRate()).toBe(10);
+      expect(secondComponent.getTelemetryWindowPeakRate()).toBeGreaterThanOrEqual(40);
+      done();
+    }, 100);
+  });
 });

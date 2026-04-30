@@ -33,6 +33,8 @@ interface AdoptionTelemetryPoint {
   adoptionRate: number;
 }
 
+type TelemetryWindow = '1h' | '24h' | '7d';
+
 @Component({
   selector: 'app-actions',
   standalone: true,
@@ -104,6 +106,38 @@ interface AdoptionTelemetryPoint {
           </mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
+          <div class="telemetry-window-row">
+            <button
+              mat-stroked-button
+              type="button"
+              *ngFor="let window of ['1h', '24h', '7d']"
+              [class.window-active]="selectedTelemetryWindow === window"
+              (click)="setTelemetryWindow(window)">
+              {{ window }}
+            </button>
+          </div>
+
+          <div class="telemetry-chart-shell" *ngIf="getTelemetryWindowPoints().length >= 2; else insufficientTrendData">
+            <svg [attr.width]="chartWidth" [attr.height]="chartHeight" class="telemetry-chart" role="img" aria-label="Adoption trend chart">
+              <polyline
+                [attr.points]="buildTelemetryPolyline(getTelemetryWindowPoints())"
+                fill="none"
+                stroke="#3525cd"
+                stroke-width="3"
+                stroke-linecap="round"
+                stroke-linejoin="round"></polyline>
+            </svg>
+            <div class="telemetry-chart-meta">
+              <span>Start {{ getTelemetryWindowStartRate() }}%</span>
+              <span>Peak {{ getTelemetryWindowPeakRate() }}%</span>
+              <span>Current {{ adoptionRate }}%</span>
+            </div>
+          </div>
+
+          <ng-template #insufficientTrendData>
+            <p class="telemetry-hint">Not enough telemetry points for chart view in this window yet.</p>
+          </ng-template>
+
           <div class="telemetry-list">
             <div class="telemetry-row" *ngFor="let point of adoptionTelemetry.slice(-7).reverse()">
               <span class="telemetry-time">{{ formatDateTime(point.timestamp) }}</span>
@@ -311,6 +345,49 @@ interface AdoptionTelemetryPoint {
     .telemetry-list {
       display: grid;
       gap: 8px;
+      margin-top: 12px;
+    }
+
+    .telemetry-window-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .window-active {
+      background: rgba(53, 37, 205, 0.1);
+      border-color: #3525cd;
+      color: #3525cd;
+    }
+
+    .telemetry-chart-shell {
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 8px;
+      background: #fbfaff;
+      padding: 12px;
+    }
+
+    .telemetry-chart {
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .telemetry-chart-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .telemetry-hint {
+      margin: 0;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
     }
 
     .telemetry-row {
@@ -486,6 +563,8 @@ export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
   private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
   private readonly maxTelemetryPoints = 60;
+  readonly chartWidth = 420;
+  readonly chartHeight = 120;
 
   loading = true;
   errorMessage = '';
@@ -499,6 +578,7 @@ export class ActionsComponent implements OnInit {
   adoptionRate = 0;
   adoptionDelta24h = 0;
   adoptionTelemetry: AdoptionTelemetryPoint[] = [];
+  selectedTelemetryWindow: TelemetryWindow = '24h';
 
   constructor(
     private riskService: RiskService,
@@ -756,6 +836,67 @@ export class ActionsComponent implements OnInit {
     const threshold = latest.timestamp - 24 * 60 * 60 * 1000;
     const baseline = this.adoptionTelemetry.find((point) => point.timestamp >= threshold) || this.adoptionTelemetry[0];
     this.adoptionDelta24h = latest.adoptionRate - baseline.adoptionRate;
+  }
+
+  setTelemetryWindow(window: string): void {
+    if (window === '1h' || window === '24h' || window === '7d') {
+      this.selectedTelemetryWindow = window;
+    }
+  }
+
+  getTelemetryWindowPoints(): AdoptionTelemetryPoint[] {
+    if (!this.adoptionTelemetry.length) {
+      return [];
+    }
+
+    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
+    const threshold = latestTimestamp - this.getWindowDurationMs(this.selectedTelemetryWindow);
+    const filtered = this.adoptionTelemetry.filter((point) => point.timestamp >= threshold);
+    return filtered.length ? filtered : [this.adoptionTelemetry[this.adoptionTelemetry.length - 1]];
+  }
+
+  buildTelemetryPolyline(points: AdoptionTelemetryPoint[]): string {
+    if (points.length < 2) {
+      return '';
+    }
+
+    const minRate = Math.min(...points.map((point) => point.adoptionRate));
+    const maxRate = Math.max(...points.map((point) => point.adoptionRate));
+    const rateSpan = Math.max(maxRate - minRate, 1);
+
+    const firstTs = points[0].timestamp;
+    const lastTs = points[points.length - 1].timestamp;
+    const tsSpan = Math.max(lastTs - firstTs, 1);
+
+    return points
+      .map((point) => {
+        const x = ((point.timestamp - firstTs) / tsSpan) * (this.chartWidth - 8) + 4;
+        const y = this.chartHeight - (((point.adoptionRate - minRate) / rateSpan) * (this.chartHeight - 12) + 6);
+        return `${Math.round(x)},${Math.round(y)}`;
+      })
+      .join(' ');
+  }
+
+  getTelemetryWindowStartRate(): number {
+    const points = this.getTelemetryWindowPoints();
+    return points.length ? points[0].adoptionRate : 0;
+  }
+
+  getTelemetryWindowPeakRate(): number {
+    const points = this.getTelemetryWindowPoints();
+    return points.length ? Math.max(...points.map((point) => point.adoptionRate)) : 0;
+  }
+
+  private getWindowDurationMs(window: TelemetryWindow): number {
+    if (window === '1h') {
+      return 60 * 60 * 1000;
+    }
+
+    if (window === '24h') {
+      return 24 * 60 * 60 * 1000;
+    }
+
+    return 7 * 24 * 60 * 60 * 1000;
   }
 
   formatDate(timestamp: number): string {
