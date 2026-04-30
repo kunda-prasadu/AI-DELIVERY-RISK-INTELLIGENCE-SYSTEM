@@ -7,11 +7,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
-import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { ProjectAnomaly, ProjectRiskTrend, RiskScore, RiskService } from '../../shared/services/risk.service';
 import { AlertService, ProjectAlert } from '../../shared/services/alert.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
-import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
+import { RiskScoreCardComponent, TrendDirection } from '../../shared/components/risk-score-card.component';
 
 interface DashboardMetrics {
   openHighRisks: number;
@@ -118,7 +118,11 @@ interface DashboardMetrics {
         <mat-card-content>
           <p *ngIf="!topRisks.length">No scorecards are available until risk scores load.</p>
           <div class="scorecards-grid" *ngIf="topRisks.length">
-            <app-risk-score-card *ngFor="let risk of topRisks.slice(0, 3)" [riskScore]="risk"></app-risk-score-card>
+            <app-risk-score-card
+              *ngFor="let risk of topRisks.slice(0, 3)"
+              [riskScore]="risk"
+              [trendDirection]="projectTrendDirections[risk.projectId] || null"
+            ></app-risk-score-card>
           </div>
         </mat-card-content>
       </mat-card>
@@ -429,6 +433,7 @@ export class DashboardComponent implements OnInit {
   topRisks: RiskScore[] = [];
   topAnomalies: ProjectAnomaly[] = [];
   topAlerts: ProjectAlert[] = [];
+  projectTrendDirections: Record<string, TrendDirection> = {};
 
   constructor(
     private projectsService: ProjectsService,
@@ -480,6 +485,7 @@ export class DashboardComponent implements OnInit {
         this.topRisks = [...riskScores]
           .sort((a, b) => b.score - a.score)
           .slice(0, 5);
+        this.loadScorecardTrends(this.topRisks);
 
         this.topAnomalies = [...(anomalies as ProjectAnomaly[])]
           .sort((a, b) => b.anomalyScore - a.anomalyScore)
@@ -499,6 +505,26 @@ export class DashboardComponent implements OnInit {
 
   getTopAnomalyAction(anomaly: ProjectAnomaly): string {
     return getRecommendedActionsForAnomaly(anomaly)[0] || 'Continue monitoring and re-evaluate on next snapshot.';
+  }
+
+  private loadScorecardTrends(risks: RiskScore[]): void {
+    const topScorecardIds = risks.slice(0, 3).map((risk) => risk.projectId);
+    if (!topScorecardIds.length) {
+      this.projectTrendDirections = {};
+      return;
+    }
+
+    const trendRequests = topScorecardIds.map((projectId) =>
+      this.riskService.getProjectRiskTrend(projectId).pipe(catchError(() => of(null)))
+    );
+
+    forkJoin(trendRequests).subscribe((trends) => {
+      const nextTrends: Record<string, TrendDirection> = {};
+      trends.forEach((trend, index) => {
+        nextTrends[topScorecardIds[index]] = (trend as ProjectRiskTrend | null)?.trend ?? null;
+      });
+      this.projectTrendDirections = nextTrends;
+    });
   }
 
   getAlertSeverityChipClass(alert: ProjectAlert): string {

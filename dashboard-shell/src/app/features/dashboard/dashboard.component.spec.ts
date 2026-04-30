@@ -19,9 +19,11 @@ describe('DashboardComponent', () => {
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
       'getPortfolioAnomalies',
+      'getProjectRiskTrend',
       'getBandColor',
       'getBandBackgroundColor',
     ]);
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(of(null));
     riskServiceSpy.getBandColor.and.callFake((band: string) => {
       const colors: Record<string, string> = {
         LOW: '#2e7d32',
@@ -92,6 +94,15 @@ describe('DashboardComponent', () => {
         },
       ] as any)
     );
+    riskServiceSpy.getProjectRiskTrend.and.callFake((projectId: string) => {
+      if (projectId === 'p1') {
+        return of({ trend: 'worsening' } as any);
+      }
+      if (projectId === 'p2') {
+        return of({ trend: 'stable' } as any);
+      }
+      return of(null);
+    });
     alertServiceSpy.getPortfolioAlerts.and.returnValue(
       of({
         totalActive: 1,
@@ -124,9 +135,11 @@ describe('DashboardComponent', () => {
     expect(component.metrics.activeProjects).toBe(2);
     expect(component.metrics.openHighRisks).toBe(1);
     expect(component.metrics.avgProbability).toBe(56);
+    expect(component.projectTrendDirections['p1']).toBe('worsening');
     expect(compiled.textContent).toContain('Project One');
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');
+    expect(compiled.textContent).toContain('Worsening');
     expect(compiled.textContent).toContain('Anomaly Radar');
     expect(compiled.textContent).toContain('Active Alerts');
     expect(compiled.textContent).toContain('Risk score exceeded threshold.');
