@@ -556,6 +556,45 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should page older and newer navigator jump entries for deeper history exploration', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 50 }, (_, index) => ({
+      timestamp: now - ((49 - index) * 30 * 60 * 1000),
+      openCount: Math.max(50 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(5 + (index * 2), 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const firstPageHead = secondComponent.getTelemetryNavigatorPoints()[0];
+      expect(secondComponent.canShiftTelemetryNavigatorOlder()).toBeTrue();
+
+      secondComponent.shiftTelemetryNavigator('older');
+      const secondPageHead = secondComponent.getTelemetryNavigatorPoints()[0];
+
+      expect(secondComponent.telemetryNavigatorOffset).toBeGreaterThan(0);
+      expect(secondPageHead.timestamp).toBeLessThan(firstPageHead.timestamp);
+      expect(secondComponent.canShiftTelemetryNavigatorNewer()).toBeTrue();
+
+      secondComponent.shiftTelemetryNavigator('newer');
+      const resetPageHead = secondComponent.getTelemetryNavigatorPoints()[0];
+
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+      expect(resetPageHead.timestamp).toBe(firstPageHead.timestamp);
+      done();
+    }, 100);
+  });
+
   it('should derive per-series rates for the active telemetry point', (done) => {
     const now = Date.now();
     const seed = [

@@ -243,7 +243,13 @@ type TelemetryWindow = '1h' | '24h' | '7d';
           </div>
 
           <div *ngIf="getTelemetryNavigatorPoints().length" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-            <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
+            <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
+              <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
+              <div style="display:flex;gap:8px;">
+                <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
+                <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+              </div>
+            </div>
             <div style="display:flex;flex-wrap:wrap;gap:8px;">
               <button
                 *ngFor="let point of getTelemetryNavigatorPoints()"
@@ -738,12 +744,14 @@ export class ActionsComponent implements OnInit {
   hoveredTelemetryPoint: AdoptionTelemetryPoint | null = null;
   telemetryZoomLevel: TelemetryZoomLevel = 1;
   telemetryPanOffsetSteps = 0;
+  telemetryNavigatorOffset = 0;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
     { key: 'inProgress', label: 'In Progress', color: '#ff8f00' },
   ];
   readonly telemetryZoomLevels: TelemetryZoomLevel[] = [1, 2, 4];
+  readonly telemetryNavigatorPageSize = 8;
 
   constructor(
     private riskService: RiskService,
@@ -1025,7 +1033,9 @@ export class ActionsComponent implements OnInit {
     if (window === '1h' || window === '24h' || window === '7d') {
       this.selectedTelemetryWindow = window;
       this.telemetryPanOffsetSteps = 0;
+      this.telemetryNavigatorOffset = 0;
       this.syncActiveTelemetryPoint();
+      this.clampTelemetryNavigatorOffset();
     }
   }
 
@@ -1034,6 +1044,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryZoomLevel = zoom;
       this.clampTelemetryPanOffset();
       this.syncActiveTelemetryPoint();
+      this.clampTelemetryNavigatorOffset();
     }
   }
 
@@ -1044,6 +1055,7 @@ export class ActionsComponent implements OnInit {
 
     this.telemetryPanOffsetSteps = Math.max(0, Math.min(this.getMaxTelemetryPanOffsetSteps(), nextOffset));
     this.syncActiveTelemetryPoint();
+    this.clampTelemetryNavigatorOffset();
   }
 
   canPanTelemetryOlder(): boolean {
@@ -1090,11 +1102,40 @@ export class ActionsComponent implements OnInit {
   }
 
   getTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
+    return this.getAllTelemetryNavigatorPoints()
+      .slice(this.telemetryNavigatorOffset, this.telemetryNavigatorOffset + this.telemetryNavigatorPageSize);
+  }
+
+  shiftTelemetryNavigator(direction: 'older' | 'newer'): void {
+    const step = direction === 'older' ? this.telemetryNavigatorPageSize : -this.telemetryNavigatorPageSize;
+    this.telemetryNavigatorOffset = Math.max(
+      0,
+      Math.min(this.getMaxTelemetryNavigatorOffset(), this.telemetryNavigatorOffset + step)
+    );
+  }
+
+  canShiftTelemetryNavigatorOlder(): boolean {
+    return this.telemetryNavigatorOffset < this.getMaxTelemetryNavigatorOffset();
+  }
+
+  canShiftTelemetryNavigatorNewer(): boolean {
+    return this.telemetryNavigatorOffset > 0;
+  }
+
+  private getAllTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
     const visibleTimestamps = new Set(this.getTelemetryWindowPoints().map((point) => point.timestamp));
     return [...this.adoptionTelemetry]
       .reverse()
-      .filter((point) => !visibleTimestamps.has(point.timestamp))
-      .slice(0, 8);
+      .filter((point) => !visibleTimestamps.has(point.timestamp));
+  }
+
+  private getMaxTelemetryNavigatorOffset(): number {
+    const total = this.getAllTelemetryNavigatorPoints().length;
+    return Math.max(0, total - this.telemetryNavigatorPageSize);
+  }
+
+  private clampTelemetryNavigatorOffset(): void {
+    this.telemetryNavigatorOffset = Math.max(0, Math.min(this.telemetryNavigatorOffset, this.getMaxTelemetryNavigatorOffset()));
   }
 
   buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
@@ -1171,6 +1212,7 @@ export class ActionsComponent implements OnInit {
     const estimatedOffset = Math.round((latestTimestamp - point.timestamp) / this.getTelemetryPanStepMs());
     this.telemetryPanOffsetSteps = Math.max(0, Math.min(this.getMaxTelemetryPanOffsetSteps(), estimatedOffset));
     this.syncActiveTelemetryPoint();
+    this.clampTelemetryNavigatorOffset();
     this.setHoveredTelemetryPoint(point);
   }
 
