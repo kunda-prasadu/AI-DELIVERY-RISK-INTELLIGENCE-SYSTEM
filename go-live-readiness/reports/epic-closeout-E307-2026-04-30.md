@@ -4,14 +4,14 @@
 - Sprint: S6
 - Report Date: 2026-04-30
 - Status: Final
-- Final Completion Commit: TBD
+- Final Completion Commit: `29eb8a0`
 - Closeout Tag: `E307-complete-2026-04-30`
 
 ## Delivered Slices
 
 | Commit | Description |
 |--------|-------------|
-| `TBD` | feat(e307): add compliance control evidence gate |
+| `29eb8a0` | feat(e307): add compliance control evidence gate |
 
 ## Validation Summary
 
