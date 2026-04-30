@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { of } from 'rxjs';
 import { DashboardComponent } from './dashboard.component';
 import { ProjectsService } from '../../shared/services/projects.service';
@@ -7,9 +8,11 @@ import { RiskService } from '../../shared/services/risk.service';
 describe('DashboardComponent', () => {
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
+  let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
+    routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
       'getPortfolioAnomalies',
@@ -40,6 +43,7 @@ describe('DashboardComponent', () => {
       providers: [
         { provide: ProjectsService, useValue: projectsServiceSpy },
         { provide: RiskService, useValue: riskServiceSpy },
+        { provide: Router, useValue: routerSpy },
       ],
     }).compileComponents();
   });
@@ -113,5 +117,18 @@ describe('DashboardComponent', () => {
 
     expect(component.errorMessage).toContain('Dashboard data is unavailable');
     expect(compiled.textContent).toContain('Try Again');
+  });
+
+  it('should navigate to anomaly drilldown from dashboard', () => {
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p1' } as any], total: 1 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance.openAnomalyDetail('p1');
+
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk/anomalies', 'p1']);
   });
 });

@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -146,9 +147,14 @@ interface DashboardMetrics {
               <span class="program-name">{{ anomaly.projectId }}</span>
               <p class="anomaly-reason">{{ anomaly.reasons[0] || 'No anomaly rationale available.' }}</p>
             </div>
-            <span class="risk-chip" [class]="'risk-' + anomaly.severity.toLowerCase()">
-              {{ anomaly.severity }} · {{ anomaly.anomalyScore }}
-            </span>
+            <div class="anomaly-actions">
+              <span class="risk-chip" [class]="'risk-' + anomaly.severity.toLowerCase()">
+                {{ anomaly.severity }} · {{ anomaly.anomalyScore }}
+              </span>
+              <button mat-stroked-button type="button" (click)="openAnomalyDetail(anomaly.projectId)">
+                View Details
+              </button>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -293,10 +299,18 @@ interface DashboardMetrics {
 
     .list-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
       justify-content: space-between;
       gap: 12px;
       margin-bottom: 10px;
+    }
+
+    .anomaly-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: auto;
     }
 
     .program-name {
@@ -369,7 +383,8 @@ export class DashboardComponent implements OnInit {
 
   constructor(
     private projectsService: ProjectsService,
-    private riskService: RiskService
+    private riskService: RiskService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -421,5 +436,9 @@ export class DashboardComponent implements OnInit {
 
         this.lastUpdated = new Date().toLocaleString();
       });
+  }
+
+  openAnomalyDetail(projectId: string): void {
+    this.router.navigate(['/risk/anomalies', projectId]);
   }
 }
