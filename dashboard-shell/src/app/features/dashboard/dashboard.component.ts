@@ -9,6 +9,8 @@ import { catchError, finalize, map } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { ProjectAnomaly, ProjectRiskTrend, RiskScore, RiskService } from '../../shared/services/risk.service';
 import { AlertService, ProjectAlert } from '../../shared/services/alert.service';
+import { ExecutiveReport, ReportingService } from '../../shared/services/reporting.service';
+import { ForecastService, PortfolioForecast } from '../../shared/services/forecast.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
 import { RiskScoreCardComponent, TrendAgeStatus, TrendDirection } from '../../shared/components/risk-score-card.component';
@@ -100,6 +102,88 @@ interface DashboardMetrics {
           </mat-card-content>
         </mat-card>
       </div>
+
+      <mat-card class="section-card executive-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Executive Snapshot</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <p *ngIf="!latestExecutiveReport && !latestPortfolioForecast">
+            Executive reporting inputs are not available yet. Generate a report or forecast from the Action Center.
+          </p>
+
+          <div class="executive-grid" *ngIf="latestExecutiveReport || latestPortfolioForecast">
+            <div class="executive-block" *ngIf="latestExecutiveReport">
+              <div class="executive-block-header">
+                <h3>Latest Executive Report</h3>
+                <span class="executive-pill" [class]="'rag-' + latestExecutiveReport.sections.executiveSummary.overallRag.toLowerCase()">
+                  {{ latestExecutiveReport.sections.executiveSummary.overallRag }}
+                </span>
+              </div>
+              <p class="executive-meta">
+                {{ latestExecutiveReport.reportType | titlecase }} · {{ latestExecutiveReport.generatedAt | date:'medium' }}
+              </p>
+              <div class="executive-stats-row">
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestExecutiveReport.sections.executiveSummary.portfolioHealth.totalProjects }}</span>
+                  <span class="executive-stat-label">Projects</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestExecutiveReport.sections.executiveSummary.portfolioHealth.atRisk }}</span>
+                  <span class="executive-stat-label">At Risk</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestExecutiveReport.sections.executiveSummary.averageRiskScore }}</span>
+                  <span class="executive-stat-label">Avg Risk</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestExecutiveReport.sections.executiveSummary.openRecommendations }}</span>
+                  <span class="executive-stat-label">Open Recs</span>
+                </div>
+              </div>
+              <div class="executive-list" *ngIf="latestExecutiveReport.sections.topRisks.length">
+                <div class="executive-list-row" *ngFor="let risk of latestExecutiveReport.sections.topRisks.slice(0, 3)">
+                  <span class="program-name">{{ risk.projectName }}</span>
+                  <span class="risk-chip" [class]="'risk-' + risk.rag.toLowerCase()">{{ risk.rag }} · {{ risk.riskScore }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="executive-block" *ngIf="latestPortfolioForecast">
+              <div class="executive-block-header">
+                <h3>Latest Portfolio Forecast</h3>
+                <span class="executive-meta">{{ latestPortfolioForecast.generatedAt | date:'medium' }}</span>
+              </div>
+              <div class="executive-stats-row">
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestPortfolioForecast.totalProjects }}</span>
+                  <span class="executive-stat-label">Projects</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestPortfolioForecast.summary.worseningCount }}</span>
+                  <span class="executive-stat-label">Worsening</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestPortfolioForecast.summary.improvingCount }}</span>
+                  <span class="executive-stat-label">Improving</span>
+                </div>
+                <div class="executive-stat">
+                  <span class="executive-stat-value">{{ latestPortfolioForecast.summary.atRiskCount }}</span>
+                  <span class="executive-stat-label">At Risk</span>
+                </div>
+              </div>
+              <div class="executive-list" *ngIf="latestPortfolioForecast.completionForecasts.length">
+                <div class="executive-list-row" *ngFor="let forecast of latestPortfolioForecast.completionForecasts.slice(0, 3)">
+                  <span class="program-name">{{ forecast.projectName }}</span>
+                  <span class="executive-forecast-copy">
+                    {{ forecast.estimatedCompletionDate || 'No completion date' }} · {{ forecast.confidence }} confidence
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <mat-card class="section-card" *ngIf="!loading && !errorMessage">
         <mat-card-header>
@@ -337,6 +421,110 @@ interface DashboardMetrics {
       gap: 16px;
     }
 
+    .executive-card h3 {
+      margin: 0;
+      color: var(--ri-on-surface);
+      font-size: 15px;
+    }
+
+    .executive-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .executive-block {
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 12px;
+      padding: 16px;
+      background: linear-gradient(180deg, #ffffff 0%, #f8f9fb 100%);
+    }
+
+    .executive-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .executive-meta {
+      margin: 0 0 12px 0;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .executive-pill {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .rag-red {
+      background: #ffebee;
+      color: #ba1a1a;
+    }
+
+    .rag-amber {
+      background: #fff8e1;
+      color: #f9a825;
+    }
+
+    .rag-green {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .executive-stats-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .executive-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #ffffff;
+      border: 1px solid var(--ri-outline-variant);
+    }
+
+    .executive-stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--ri-primary);
+    }
+
+    .executive-stat-label {
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .executive-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .executive-list-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--ri-outline-variant);
+    }
+
+    .executive-forecast-copy {
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+      text-align: right;
+    }
+
     .list-row {
       display: flex;
       align-items: flex-start;
@@ -443,6 +631,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   topRisks: RiskScore[] = [];
   topAnomalies: ProjectAnomaly[] = [];
   topAlerts: ProjectAlert[] = [];
+  latestExecutiveReport: ExecutiveReport | null = null;
+  latestPortfolioForecast: PortfolioForecast | null = null;
   projectTrendDirections: Record<string, TrendDirection> = {};
   projectTrendLoading: Record<string, boolean> = {};
   projectTrendUpdatedAt: Record<string, string | null> = {};
@@ -457,6 +647,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
     private projectsService: ProjectsService,
     private riskService: RiskService,
     private alertService: AlertService,
+    private reportingService: ReportingService,
+    private forecastService: ForecastService,
     private router: Router
   ) {}
 
@@ -478,13 +670,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
       risks: this.riskService.refreshRiskScores().pipe(catchError(() => of([]))),
       anomalies: this.riskService.getPortfolioAnomalies().pipe(catchError(() => of([]))),
       alerts: this.alertService.getPortfolioAlerts().pipe(catchError(() => of({ totalActive: 0, alerts: [] }))),
+      reports: this.reportingService.listReports().pipe(catchError(() => of({ reports: [], total: 0 }))),
+      forecasts: this.forecastService.list({ forecastType: 'PORTFOLIO' }).pipe(catchError(() => of({ forecasts: [], total: 0 }))),
     })
       .pipe(
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe(({ projects, risks, anomalies, alerts }) => {
+      .subscribe(({ projects, risks, anomalies, alerts, reports, forecasts }) => {
         const riskScores = risks as RiskScore[];
 
         if (!projects.projects.length && !riskScores.length) {
@@ -517,6 +711,9 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.topAlerts = [...alerts.alerts]
           .sort((a, b) => b.breachCount - a.breachCount)
           .slice(0, 5);
+
+        this.latestExecutiveReport = (reports.reports?.[0] as ExecutiveReport | undefined) || null;
+        this.latestPortfolioForecast = (forecasts.forecasts?.[0] as PortfolioForecast | undefined) || null;
 
         this.lastUpdated = new Date().toLocaleString();
       });

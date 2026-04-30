@@ -5,17 +5,23 @@ import { DashboardComponent } from './dashboard.component';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
 import { AlertService } from '../../shared/services/alert.service';
+import { ReportingService } from '../../shared/services/reporting.service';
+import { ForecastService } from '../../shared/services/forecast.service';
 
 describe('DashboardComponent', () => {
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
   let alertServiceSpy: jasmine.SpyObj<AlertService>;
+  let reportingServiceSpy: jasmine.SpyObj<ReportingService>;
+  let forecastServiceSpy: jasmine.SpyObj<ForecastService>;
   let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
     routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
     alertServiceSpy = jasmine.createSpyObj<AlertService>('AlertService', ['getPortfolioAlerts']);
+    reportingServiceSpy = jasmine.createSpyObj<ReportingService>('ReportingService', ['listReports']);
+    forecastServiceSpy = jasmine.createSpyObj<ForecastService>('ForecastService', ['list']);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
       'refreshRiskScores',
       'getPortfolioAnomalies',
@@ -42,6 +48,8 @@ describe('DashboardComponent', () => {
       };
       return colors[band] || '#f0ecf9';
     });
+    reportingServiceSpy.listReports.and.returnValue(of({ reports: [], total: 0 }));
+    forecastServiceSpy.list.and.returnValue(of({ forecasts: [], total: 0 }));
 
     await TestBed.configureTestingModule({
       imports: [DashboardComponent],
@@ -49,6 +57,8 @@ describe('DashboardComponent', () => {
         { provide: ProjectsService, useValue: projectsServiceSpy },
         { provide: RiskService, useValue: riskServiceSpy },
         { provide: AlertService, useValue: alertServiceSpy },
+        { provide: ReportingService, useValue: reportingServiceSpy },
+        { provide: ForecastService, useValue: forecastServiceSpy },
         { provide: Router, useValue: routerSpy },
       ],
     }).compileComponents();
@@ -135,6 +145,62 @@ describe('DashboardComponent', () => {
         ],
       })
     );
+    reportingServiceSpy.listReports.and.returnValue(
+      of({
+        reports: [
+          {
+            reportId: 'rpt-1',
+            reportType: 'executive-summary',
+            requestedBy: 'exec-user',
+            generatedAt: new Date().toISOString(),
+            sections: {
+              executiveSummary: {
+                portfolioHealth: { totalProjects: 2, atRisk: 1, onTrack: 1, ragBreakdown: { RED: 1, AMBER: 0, GREEN: 1 } },
+                averageRiskScore: 56,
+                overallRag: 'RED',
+                openInsights: 4,
+                openRecommendations: 3,
+                anomalyCount: 1,
+              },
+              topRisks: [
+                { projectId: 'p1', projectName: 'Project One', riskScore: 82, rag: 'RED', status: 'active' },
+              ],
+            },
+          },
+        ],
+        total: 1,
+      })
+    );
+    forecastServiceSpy.list.and.returnValue(
+      of({
+        forecasts: [
+          {
+            forecastId: 'fc-1',
+            forecastType: 'PORTFOLIO',
+            totalProjects: 2,
+            forecastedProjects: 2,
+            completionForecasts: [
+              {
+                forecastType: 'COMPLETION',
+                projectId: 'p1',
+                projectName: 'Project One',
+                remainingPoints: 40,
+                avgVelocity: 20,
+                sprintVelocities: [18, 21, 20, 21],
+                velocityTrend: { slope: 0.5, r2: 0.7 },
+                estimatedSprintsRemaining: 2,
+                estimatedCompletionDate: '2026-05-28',
+                confidence: 'HIGH',
+              },
+            ],
+            riskTrends: [],
+            summary: { worseningCount: 1, improvingCount: 0, stableCount: 1, atRiskCount: 1 },
+            generatedAt: new Date().toISOString(),
+          },
+        ],
+        total: 1,
+      })
+    );
 
     const fixture = TestBed.createComponent(DashboardComponent);
     fixture.detectChanges();
@@ -156,6 +222,10 @@ describe('DashboardComponent', () => {
     expect(compiled.textContent).toContain('Stale');
     expect(compiled.textContent).toContain('Anomaly Radar');
     expect(compiled.textContent).toContain('Active Alerts');
+    expect(compiled.textContent).toContain('Executive Snapshot');
+    expect(compiled.textContent).toContain('Latest Executive Report');
+    expect(compiled.textContent).toContain('Latest Portfolio Forecast');
+    expect(compiled.textContent).toContain('2026-05-28');
     expect(compiled.textContent).toContain('Risk score exceeded threshold.');
     expect(compiled.textContent).toContain('Action:');
     expect(compiled.textContent).toContain('Escalate to the delivery and engineering leads within 24 hours');
