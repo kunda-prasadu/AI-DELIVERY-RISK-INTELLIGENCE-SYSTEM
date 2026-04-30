@@ -5,7 +5,7 @@
 - Release ID: R1
 - Date: 2026-04-29
 - Target Environment: local-only production-like baseline
-- Commit / Tag: main HEAD / R1-local-only-final-2026-04-29
+- Commit / Tag: a6ab2a1 / R1-local-only-closeout-2026-04-30
 - Change Window: 2026-04-29 local validation window
 - Release Manager: kunda-prasadu
 - Incident Commander: kunda-prasadu
@@ -78,3 +78,4 @@ Notes:
 - 2026-04-29T17:34Z: Resolved false-negative container health by exempting `identity-service` `/health` endpoint from global request rate limiting.
 - 2026-04-29T17:34Z onward: identity container reports `healthy`; begin fresh 30-minute stability observation from this timestamp.
 - 2026-04-30T02:50Z: Final closeout verification confirmed all compose services healthy for multiple hours, `check:live` PASS, `smoke` PASS, and no sustained critical log patterns across core services.
+- Final release note: [ai-delivery-risk/go-live-readiness/reports/release-notes-R1-local-only-closeout-2026-04-30.md](../reports/release-notes-R1-local-only-closeout-2026-04-30.md)
