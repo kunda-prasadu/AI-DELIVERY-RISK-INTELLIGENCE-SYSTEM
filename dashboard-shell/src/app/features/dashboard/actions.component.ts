@@ -53,6 +53,14 @@ type TelemetryWindow = '1h' | '24h' | '7d';
 
 type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
 
+interface TelemetryNavigatorPreferences {
+  continuousMode: boolean;
+  sortOrder: TelemetryNavigatorSortOrder;
+  pageSize: number;
+  minRate: number;
+  pinnedOnlyMode: boolean;
+}
+
 @Component({
   selector: 'app-actions',
   standalone: true,
@@ -783,6 +791,7 @@ export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
   private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
   private readonly telemetryPinnedStorageKey = 'ri-action-telemetry-pins-v1';
+  private readonly telemetryNavigatorPreferencesStorageKey = 'ri-action-telemetry-navigator-prefs-v1';
   private readonly maxTelemetryPoints = 180;
   private readonly denseRecentTelemetryPoints = 60;
   private readonly historicalTelemetryStride = 3;
@@ -832,6 +841,7 @@ export class ActionsComponent implements OnInit {
     this.adoptionTelemetry = this.readTelemetry();
     this.telemetryNavigatorPinnedTimestamps = this.readPinnedTelemetryTimestamps();
     this.prunePinnedTelemetryTimestamps();
+    this.applyTelemetryNavigatorPreferences();
     this.enforceTelemetryNavigatorPinQuota();
     this.updateAdoptionDelta24h();
     this.syncActiveTelemetryPoint();
@@ -1080,6 +1090,73 @@ export class ActionsComponent implements OnInit {
     }
   }
 
+  private readTelemetryNavigatorPreferences(): Partial<TelemetryNavigatorPreferences> | null {
+    if (typeof localStorage === 'undefined') {
+      return null;
+    }
+
+    try {
+      const raw = localStorage.getItem(this.telemetryNavigatorPreferencesStorageKey);
+      if (!raw) {
+        return null;
+      }
+
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        return null;
+      }
+
+      return parsed as Partial<TelemetryNavigatorPreferences>;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistTelemetryNavigatorPreferences(): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    const preferences: TelemetryNavigatorPreferences = {
+      continuousMode: this.telemetryNavigatorContinuousMode,
+      sortOrder: this.telemetryNavigatorSortOrder,
+      pageSize: this.telemetryNavigatorPageSize,
+      minRate: this.telemetryNavigatorMinRate,
+      pinnedOnlyMode: this.telemetryNavigatorPinnedOnlyMode,
+    };
+
+    try {
+      localStorage.setItem(this.telemetryNavigatorPreferencesStorageKey, JSON.stringify(preferences));
+    } catch {
+      // Ignore storage failures to keep telemetry controls responsive.
+    }
+  }
+
+  private applyTelemetryNavigatorPreferences(): void {
+    const preferences = this.readTelemetryNavigatorPreferences();
+    if (!preferences) {
+      return;
+    }
+
+    this.telemetryNavigatorContinuousMode = !!preferences.continuousMode;
+    this.telemetryNavigatorSortOrder = preferences.sortOrder === 'oldest' ? 'oldest' : 'newest';
+
+    const parsedPageSize = typeof preferences.pageSize === 'number'
+      ? preferences.pageSize
+      : parseInt(String(preferences.pageSize), 10);
+    if (this.telemetryNavigatorPageSizeOptions.includes(parsedPageSize)) {
+      this.telemetryNavigatorPageSize = parsedPageSize;
+    }
+
+    const parsedMinRate = typeof preferences.minRate === 'number'
+      ? preferences.minRate
+      : parseFloat(String(preferences.minRate));
+    this.telemetryNavigatorMinRate = isNaN(parsedMinRate) ? 0 : Math.max(0, Math.min(100, parsedMinRate));
+
+    this.telemetryNavigatorPinnedOnlyMode = !!preferences.pinnedOnlyMode && this.telemetryNavigatorPinnedTimestamps.length > 0;
+    this.persistTelemetryNavigatorPreferences();
+  }
+
   private prunePinnedTelemetryTimestamps(): void {
     const validTimestamps = new Set(this.adoptionTelemetry.map((point) => point.timestamp));
     const pruned = this.telemetryNavigatorPinnedTimestamps.filter((timestamp) => validTimestamps.has(timestamp));
@@ -1165,8 +1242,10 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorContinuousMode = false;
       this.telemetryNavigatorSortOrder = 'newest';
       this.telemetryNavigatorMinRate = 0;
+      this.telemetryNavigatorPinnedOnlyMode = false;
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
+      this.persistTelemetryNavigatorPreferences();
     }
   }
 
@@ -1185,12 +1264,14 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorOffset = 0;
     }
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   toggleTelemetryNavigatorSortOrder(): void {
     this.telemetryNavigatorSortOrder = this.telemetryNavigatorSortOrder === 'newest' ? 'oldest' : 'newest';
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   setTelemetryNavigatorMinRate(rate: number | string): void {
@@ -1198,6 +1279,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorMinRate = isNaN(parsed) ? 0 : Math.max(0, Math.min(100, parsed));
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   setTelemetryNavigatorPageSize(size: number | string): void {
@@ -1209,6 +1291,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPageSize = parsed;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   isTelemetryNavigatorPinned(point: AdoptionTelemetryPoint): boolean {
@@ -1228,9 +1311,14 @@ export class ActionsComponent implements OnInit {
       }
     }
 
+    if (!this.telemetryNavigatorPinnedTimestamps.length) {
+      this.telemetryNavigatorPinnedOnlyMode = false;
+    }
+
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   canPinVisibleTelemetryNavigatorPoints(): boolean {
@@ -1296,6 +1384,7 @@ export class ActionsComponent implements OnInit {
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   toggleTelemetryNavigatorPinnedOnlyMode(): void {
@@ -1306,6 +1395,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPinnedOnlyMode = !this.telemetryNavigatorPinnedOnlyMode;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   getPinnedTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
@@ -1365,10 +1455,14 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPinnedTimestamps = this.telemetryNavigatorPinnedTimestamps.filter(
       (candidate) => candidate !== timestamp
     );
+    if (!this.telemetryNavigatorPinnedTimestamps.length) {
+      this.telemetryNavigatorPinnedOnlyMode = false;
+    }
     this.telemetryNavigatorPinLimitMessage = '';
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
   }
 
   private tryAddTelemetryNavigatorPin(timestamp: number): boolean {

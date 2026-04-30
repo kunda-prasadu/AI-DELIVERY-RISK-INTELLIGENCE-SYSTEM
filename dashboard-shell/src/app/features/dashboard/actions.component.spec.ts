@@ -35,6 +35,7 @@ describe('ActionsComponent', () => {
     localStorage.removeItem('ri-action-status-v1');
     localStorage.removeItem('ri-action-telemetry-v1');
     localStorage.removeItem('ri-action-telemetry-pins-v1');
+    localStorage.removeItem('ri-action-telemetry-navigator-prefs-v1');
 
     mockRiskService = {
       getPortfolioAnomalies: jasmine.createSpy('getPortfolioAnomalies').and.returnValue(of([mockAnomaly])),
@@ -1194,6 +1195,78 @@ describe('ActionsComponent', () => {
 
       secondComponent.clearTelemetryNavigatorPins();
       expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      done();
+    }, 100);
+  });
+
+  it('should persist and restore telemetry navigator preferences', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 65 }, (_, index) => ({
+      timestamp: now - ((64 - index) * 30 * 60 * 1000),
+      openCount: Math.max(65 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-pins-v1', JSON.stringify([seed[10].timestamp]));
+    localStorage.setItem('ri-action-telemetry-navigator-prefs-v1', JSON.stringify({
+      continuousMode: true,
+      sortOrder: 'oldest',
+      pageSize: 15,
+      minRate: 42,
+      pinnedOnlyMode: true,
+    }));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeTrue();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('oldest');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(42);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeTrue();
+
+      secondComponent.toggleTelemetryNavigatorContinuousMode();
+      secondComponent.toggleTelemetryNavigatorSortOrder();
+      secondComponent.setTelemetryNavigatorPageSize(5);
+      secondComponent.setTelemetryNavigatorMinRate(66);
+      secondComponent.toggleTelemetryNavigatorPinnedOnlyMode();
+
+      const persisted = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        continuousMode: boolean;
+        sortOrder: string;
+        pageSize: number;
+        minRate: number;
+        pinnedOnlyMode: boolean;
+      };
+
+      expect(persisted.continuousMode).toBeFalse();
+      expect(persisted.sortOrder).toBe('newest');
+      expect(persisted.pageSize).toBe(5);
+      expect(persisted.minRate).toBe(66);
+      expect(persisted.pinnedOnlyMode).toBeFalse();
+
+      secondComponent.setTelemetryWindow('7d');
+      const persistedAfterWindowReset = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        continuousMode: boolean;
+        sortOrder: string;
+        pageSize: number;
+        minRate: number;
+        pinnedOnlyMode: boolean;
+      };
+
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('newest');
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(persistedAfterWindowReset.continuousMode).toBeFalse();
+      expect(persistedAfterWindowReset.sortOrder).toBe('newest');
+      expect(persistedAfterWindowReset.minRate).toBe(0);
+      expect(persistedAfterWindowReset.pinnedOnlyMode).toBeFalse();
       done();
     }, 100);
   });
