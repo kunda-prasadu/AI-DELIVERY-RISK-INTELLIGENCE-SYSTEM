@@ -193,6 +193,27 @@ describe('metrics.routes', () => {
     expect(res.body.anomalies[0].anomalyScore).toBeGreaterThanOrEqual(res.body.anomalies[1].anomalyScore);
   });
 
+  test('GET /metrics/anomalies/summary returns portfolio anomaly summary', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-summary',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+
+    const res = await request(app).get('/metrics/anomalies/summary');
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('totalProjects');
+    expect(res.body).toHaveProperty('criticalCount');
+    expect(res.body).toHaveProperty('highCount');
+    expect(res.body).toHaveProperty('mediumCount');
+    expect(res.body).toHaveProperty('lowCount');
+    expect(res.body).toHaveProperty('escalatedCount');
+    expect(res.body).toHaveProperty('topAnomalies');
+    expect(Array.isArray(res.body.topAnomalies)).toBe(true);
+  });
+
   test('GET /metrics/projects/:projectId/risk-trend returns 404 when no history', async () => {
     const res = await request(app).get('/metrics/projects/unknown-proj/risk-trend');
     expect(res.status).toBe(404);

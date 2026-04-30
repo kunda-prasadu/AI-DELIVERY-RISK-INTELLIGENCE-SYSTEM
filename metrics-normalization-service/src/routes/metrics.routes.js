@@ -5,7 +5,7 @@ const { normalizeBatch } = require('../models/event.normalizer');
 const aggregator = require('../models/metrics.aggregator');
 const orchestrator = require('../models/pipeline.orchestrator');
 const { analyzeProjectTrend } = require('../models/trend.analyzer');
-const { classifyProjectAnomaly, classifyPortfolioAnomalies } = require('../models/anomaly.classifier');
+const { classifyProjectAnomaly, classifyPortfolioAnomalies, summarisePortfolioAnomalies } = require('../models/anomaly.classifier');
 const { buildRiskTrend } = require('../models/risk.trend.calculator');
 const { evaluateProjectAlerts, evaluatePortfolioAlerts } = require('../models/alert.threshold.engine');
 
@@ -74,6 +74,15 @@ router.get('/anomalies', (_req, res) => {
     totalProjects: anomalies.length,
     anomalies,
   });
+});
+
+router.get('/anomalies/summary', (_req, res) => {
+  const anomalies = classifyPortfolioAnomalies(
+    aggregator.listProjectMetrics(),
+    (projectId) => orchestrator.getPreviousMetrics(projectId)
+  );
+
+  return res.status(200).json(summarisePortfolioAnomalies(anomalies));
 });
 
 router.get('/alerts', (_req, res) => {
