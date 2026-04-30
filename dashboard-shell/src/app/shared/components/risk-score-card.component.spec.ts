@@ -90,6 +90,19 @@ describe('RiskScoreCardComponent', () => {
     expect(badge.textContent).toContain('Trend unavailable: fetch failed');
   });
 
+  it('should emit retryTrend with projectId when retry is clicked', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'fetch_failed';
+    spyOn(fixture.componentInstance.retryTrend, 'emit');
+    fixture.detectChanges();
+
+    const btn = fixture.nativeElement.querySelector('.trend-retry-btn') as HTMLButtonElement;
+    btn.click();
+
+    expect(fixture.componentInstance.retryTrend.emit).toHaveBeenCalledWith('p1');
+  });
+
   it('should render worsening trend badge with ↑ arrow', () => {
     const fixture = TestBed.createComponent(RiskScoreCardComponent);
     fixture.componentInstance.riskScore = baseScore;

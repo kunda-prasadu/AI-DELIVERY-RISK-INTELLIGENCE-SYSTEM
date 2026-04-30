@@ -125,6 +125,7 @@ interface DashboardMetrics {
               [trendDirection]="projectTrendDirections[risk.projectId] || null"
               [trendLastUpdated]="projectTrendUpdatedAt[risk.projectId] || null"
               [trendAgeStatus]="projectTrendAgeStatus[risk.projectId] || null"
+              (retryTrend)="retryProjectTrend($event)"
             ></app-risk-score-card>
           </div>
         </mat-card-content>
@@ -511,6 +512,38 @@ export class DashboardComponent implements OnInit {
 
   getTopAnomalyAction(anomaly: ProjectAnomaly): string {
     return getRecommendedActionsForAnomaly(anomaly)[0] || 'Continue monitoring and re-evaluate on next snapshot.';
+  }
+
+  retryProjectTrend(projectId: string): void {
+    if (!projectId || !(projectId in this.projectTrendDirections)) {
+      return;
+    }
+
+    this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: true };
+
+    this.riskService.getProjectRiskTrend(projectId).pipe(
+      map((trend) => ({ trend, fetchFailed: false })),
+      catchError(() => of({ trend: null, fetchFailed: true }))
+    ).subscribe((trendResult) => {
+      if (trendResult.fetchFailed) {
+        this.projectTrendDirections = { ...this.projectTrendDirections, [projectId]: 'fetch_failed' };
+        this.projectTrendUpdatedAt = { ...this.projectTrendUpdatedAt, [projectId]: null };
+        this.projectTrendAgeStatus = { ...this.projectTrendAgeStatus, [projectId]: null };
+        this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: false };
+        return;
+      }
+
+      const trendPayload = trendResult.trend as ProjectRiskTrend | null;
+      const latestSnapshotAt = this.getLatestTrendSnapshotAt(trendPayload);
+
+      this.projectTrendDirections = {
+        ...this.projectTrendDirections,
+        [projectId]: trendPayload?.trend ?? 'insufficient_data',
+      };
+      this.projectTrendUpdatedAt = { ...this.projectTrendUpdatedAt, [projectId]: latestSnapshotAt };
+      this.projectTrendAgeStatus = { ...this.projectTrendAgeStatus, [projectId]: this.getTrendAgeStatus(latestSnapshotAt) };
+      this.projectTrendLoading = { ...this.projectTrendLoading, [projectId]: false };
+    });
   }
 
   private loadScorecardTrends(risks: RiskScore[]): void {

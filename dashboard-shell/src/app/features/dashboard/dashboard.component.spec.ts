@@ -327,4 +327,45 @@ describe('DashboardComponent', () => {
     expect(fixture.componentInstance.projectTrendDirections['p1']).toBe('fetch_failed');
     expect(compiled.textContent).toContain('Trend unavailable: fetch failed');
   });
+
+  it('should retry a single project trend after fetch_failed state', () => {
+    let attempt = 0;
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p1' } as any], total: 1 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          projectName: 'Project One',
+          score: 70,
+          band: 'HIGH',
+          signals: { codeVelocity: 70, quality: 70, cicd: 70, jiraVelocity: 70 },
+          lastUpdated: new Date().toISOString(),
+        },
+      ] as any)
+    );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    riskServiceSpy.getProjectRiskTrend.and.callFake(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        return throwError(() => new Error('trend route failed'));
+      }
+      return of({
+        trend: 'stable',
+        snapshots: [
+          { snapshotAt: new Date().toISOString(), riskScore: 70, band: 'HIGH', criticalCount: 1, totalEvents: 4 },
+        ],
+      } as any);
+    });
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.projectTrendDirections['p1']).toBe('fetch_failed');
+
+    fixture.componentInstance.retryProjectTrend('p1');
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.projectTrendDirections['p1']).toBe('stable');
+  });
 });

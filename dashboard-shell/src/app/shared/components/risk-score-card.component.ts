@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -80,6 +80,15 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
               Trend unavailable: fetch failed
             </ng-container>
           </span>
+
+          <button
+            type="button"
+            class="trend-retry-btn"
+            *ngIf="trendDirection === 'fetch_failed'"
+            (click)="onRetryTrend()"
+          >
+            Retry
+          </button>
         </div>
 
         <div class="trend-meta" *ngIf="!trendLoading && trendDirection && (trendLastUpdated || trendAgeStatus)">
@@ -190,6 +199,24 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
       margin-top: 10px;
       display: flex;
       justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .trend-retry-btn {
+      border: 1px solid #ba1a1a;
+      background: white;
+      color: #ba1a1a;
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+    }
+
+    .trend-retry-btn:hover {
+      background: #ffebee;
     }
 
     .trend-meta {
@@ -256,6 +283,7 @@ export class RiskScoreCardComponent {
   @Input() trendLoading = false;
   @Input() trendLastUpdated: string | null = null;
   @Input() trendAgeStatus: TrendAgeStatus = null;
+  @Output() retryTrend = new EventEmitter<string>();
 
   constructor(public riskService: RiskService) {}
 
@@ -280,5 +308,11 @@ export class RiskScoreCardComponent {
     if (this.trendDirection === 'worsening') return 'Worsening';
     if (this.trendDirection === 'improving') return 'Improving';
     return 'Stable';
+  }
+
+  onRetryTrend(): void {
+    if (this.riskScore?.projectId) {
+      this.retryTrend.emit(this.riskScore.projectId);
+    }
   }
 }
