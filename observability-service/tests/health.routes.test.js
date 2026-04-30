@@ -108,6 +108,42 @@ describe('GET /metrics/summary', () => {
   });
 });
 
+describe('GET /metrics/slo', () => {
+  test('returns API and dashboard SLO summaries', async () => {
+    metricsCollector.recordHttpRequest('GET', '/api/projects', 200, 40);
+    metricsCollector.recordHttpRequest('GET', '/api/projects', 200, 90);
+    metricsCollector.recordDashboardRender('/dashboard', 500);
+
+    const res = await request(app).get('/metrics/slo');
+    expect(res.status).toBe(200);
+    expect(res.body.api.overall.p95Ms).toBe(90);
+    expect(res.body.dashboard.overall.p95Ms).toBe(500);
+    expect(res.body.overall.apiWithinTarget).toBe(true);
+    expect(res.body.overall.dashboardWithinTarget).toBe(true);
+  });
+});
+
+describe('POST /metrics/frontend', () => {
+  test('accepts dashboard render timing samples', async () => {
+    const res = await request(app)
+      .post('/metrics/frontend')
+      .send({ route: '/audit', durationMs: 725 });
+
+    expect(res.status).toBe(202);
+    expect(res.body.accepted).toBe(true);
+    expect(metricsCollector.dashboardRenderDurations.get('/audit')).toEqual([725]);
+  });
+
+  test('rejects invalid dashboard render samples', async () => {
+    const res = await request(app)
+      .post('/metrics/frontend')
+      .send({ route: '', durationMs: -1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Validation failed');
+  });
+});
+
 describe('GET /status', () => {
   test('returns service status', async () => {
     const res = await request(app).get('/status');

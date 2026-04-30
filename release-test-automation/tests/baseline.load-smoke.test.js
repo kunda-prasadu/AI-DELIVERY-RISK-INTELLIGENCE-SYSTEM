@@ -25,13 +25,19 @@ describe('E-109 baseline load smoke', () => {
     await stack.close();
   });
 
-  test('handles concurrent health checks and protected reads', async () => {
-    const iterations = 60;
+  test('meets API and dashboard p95 SLOs under concurrent load', async () => {
+    const iterations = 40;
     const tasks = [];
 
     for (let i = 0; i < iterations; i += 1) {
       tasks.push(api.get('/api/observability/health/live'));
       tasks.push(api.get('/api/projects').set('Authorization', `Bearer ${token}`));
+      tasks.push(
+        api.post('/api/observability/metrics/frontend').send({
+          route: '/dashboard',
+          durationMs: 420 + (i % 5) * 60,
+        })
+      );
     }
 
     const start = Date.now();
@@ -41,8 +47,14 @@ describe('E-109 baseline load smoke', () => {
     const successCount = responses.filter((res) => res.status >= 200 && res.status < 300).length;
     const total = responses.length;
     const successRate = successCount / total;
+    const sloSummary = await api.get('/api/observability/metrics/slo');
 
     expect(successRate).toBeGreaterThanOrEqual(0.95);
     expect(durationMs).toBeLessThan(5000);
+    expect(sloSummary.status).toBe(200);
+    expect(sloSummary.body.api.overall.withinTarget).toBe(true);
+    expect(sloSummary.body.dashboard.overall.withinTarget).toBe(true);
+    expect(sloSummary.body.api.overall.p95Ms).toBeLessThanOrEqual(sloSummary.body.api.targetP95Ms);
+    expect(sloSummary.body.dashboard.overall.p95Ms).toBeLessThanOrEqual(sloSummary.body.dashboard.targetP95Ms);
   });
 });

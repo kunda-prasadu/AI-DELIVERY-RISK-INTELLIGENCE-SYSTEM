@@ -63,12 +63,14 @@ describe('MetricsCollector.setServiceHealth', () => {
 describe('MetricsCollector.exportPrometheus', () => {
   test('exports metrics in Prometheus format', () => {
     metricsCollector.recordHttpRequest('GET', '/health', 200, 25);
+    metricsCollector.recordHttpRequest('GET', '/health', 200, 250);
     metricsCollector.recordError('TimeoutError');
     metricsCollector.setServiceHealth('self', true);
 
     const output = metricsCollector.exportPrometheus();
     expect(output).toContain('http_requests_total');
     expect(output).toContain('http_request_duration_seconds');
+    expect(output).toContain('quantile="0.95"');
     expect(output).toContain('application_errors_total');
     expect(output).toContain('service_health');
     expect(output).toContain('process_uptime_seconds');
@@ -95,5 +97,42 @@ describe('MetricsCollector.getSummary', () => {
     expect(summary.totalErrors).toBe(1);
     expect(summary.healthyServices).toBe(1);
     expect(summary.totalServices).toBe(2);
+    expect(summary.latency.overall.p95Ms).toBe(10);
+    expect(summary.latency.byEndpoint[0].path).toBe('/test');
+  });
+
+  test('calculates percentile-based latency summaries per endpoint', () => {
+    [10, 20, 30, 40, 100].forEach((duration) => {
+      metricsCollector.recordHttpRequest('GET', '/projects', 200, duration);
+    });
+
+    const latency = metricsCollector.getHttpLatencySummary();
+    expect(latency.targetP95Ms).toBe(250);
+    expect(latency.overall.p50Ms).toBe(30);
+    expect(latency.overall.p95Ms).toBe(100);
+    expect(latency.overall.withinTarget).toBe(true);
+    expect(latency.byEndpoint[0]).toMatchObject({
+      method: 'GET',
+      path: '/projects',
+      count: 5,
+      p50Ms: 30,
+      p95Ms: 100,
+      withinTarget: true,
+    });
+  });
+
+  test('tracks dashboard render samples separately from API latency', () => {
+    [300, 450, 600, 900].forEach((duration) => {
+      metricsCollector.recordDashboardRender('/dashboard', duration);
+    });
+
+    const summary = metricsCollector.getSloSummary();
+    expect(summary.dashboard.targetP95Ms).toBe(1500);
+    expect(summary.dashboard.overall.p95Ms).toBe(900);
+    expect(summary.dashboard.byRoute[0]).toMatchObject({
+      route: '/dashboard',
+      count: 4,
+      withinTarget: true,
+    });
   });
 });

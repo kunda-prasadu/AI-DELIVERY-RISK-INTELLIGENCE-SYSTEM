@@ -7,6 +7,26 @@ const logger = require('../middleware/logger');
 
 const router = express.Router();
 
+function validateDashboardMetricSample(payload) {
+  const details = [];
+
+  if (!payload || typeof payload.route !== 'string' || !payload.route.trim()) {
+    details.push('"route" is required');
+  }
+
+  if (typeof payload?.durationMs !== 'number' || Number.isNaN(payload.durationMs) || payload.durationMs < 0) {
+    details.push('"durationMs" must be a non-negative number');
+  }
+
+  return {
+    error: details.length ? details : null,
+    value: {
+      route: typeof payload?.route === 'string' ? payload.route.trim() : payload?.route,
+      durationMs: payload?.durationMs,
+    },
+  };
+}
+
 // ── GET /health/live ───────────────────────────────────────────────────────
 /**
  * Liveness probe — always returns 200 if process is running.
@@ -55,6 +75,22 @@ router.get('/metrics', (req, res) => {
 router.get('/metrics/summary', (req, res) => {
   const summary = metricsCollector.getSummary();
   res.status(200).json(summary);
+});
+
+router.get('/metrics/slo', (req, res) => {
+  const summary = metricsCollector.getSloSummary();
+  res.status(200).json(summary);
+});
+
+router.post('/metrics/frontend', (req, res) => {
+  const { error, value } = validateDashboardMetricSample(req.body);
+  if (error) {
+    return res.status(400).json({ error: 'Validation failed', details: error });
+  }
+
+  metricsCollector.recordDashboardRender(value.route, value.durationMs);
+  logger.info('[Metrics] Dashboard render sample recorded', value);
+  return res.status(202).json({ accepted: true });
 });
 
 module.exports = router;

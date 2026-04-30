@@ -12,6 +12,8 @@ module.exports = {
 
   metrics: {
     retentionSeconds: parseInt(process.env.METRICS_RETENTION_SECONDS || '3600', 10),
+    apiP95TargetMs: parseInt(process.env.API_P95_TARGET_MS || '250', 10),
+    dashboardP95TargetMs: parseInt(process.env.DASHBOARD_P95_TARGET_MS || '1500', 10),
   },
 
   health: {

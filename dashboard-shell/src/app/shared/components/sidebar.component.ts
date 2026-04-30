@@ -178,6 +178,12 @@ export class SidebarComponent implements OnInit {
       route: '/audit',
       permissions: ['audit:read'],
     },
+    {
+      icon: 'speed',
+      label: 'Performance',
+      route: '/performance',
+      roles: ['admin'],
+    },
   ];
 
   constructor(private authService: AuthService) {}

@@ -50,6 +50,30 @@ app.get('/metrics/summary', (req, res) => {
   res.status(200).json(summary);
 });
 
+app.get('/metrics/slo', (req, res) => {
+  const summary = metricsCollector.getSloSummary();
+  res.status(200).json(summary);
+});
+
+app.post('/metrics/frontend', (req, res) => {
+  const payload = req.body;
+  if (!payload || typeof payload.route !== 'string' || !payload.route.trim() || typeof payload.durationMs !== 'number' || Number.isNaN(payload.durationMs) || payload.durationMs < 0) {
+    return res.status(400).json({
+      error: 'Validation failed',
+      details: ['"route" is required', '"durationMs" must be a non-negative number'].filter((message) => {
+        if (message.includes('route')) {
+          return !payload || typeof payload.route !== 'string' || !payload.route.trim();
+        }
+
+        return !payload || typeof payload.durationMs !== 'number' || Number.isNaN(payload.durationMs) || payload.durationMs < 0;
+      }),
+    });
+  }
+
+  metricsCollector.recordDashboardRender(payload.route.trim(), payload.durationMs);
+  res.status(202).json({ accepted: true });
+});
+
 // ── Status endpoint ──────────────────────────────────────────────────────────
 app.get('/status', (req, res) => res.json({ status: 'ok', service: 'observability-service' }));
 
