@@ -10,7 +10,7 @@ describe('EngineeringComponent', () => {
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
-    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['refreshRiskScores', 'getPortfolioAnomalies']);
+    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['refreshRiskScores', 'getPortfolioAnomalies', 'getPortfolioAnomalySummary']);
 
     await TestBed.configureTestingModule({
       imports: [EngineeringComponent],
@@ -91,6 +91,25 @@ describe('EngineeringComponent', () => {
       ] as any)
     );
 
+    riskServiceSpy.getPortfolioAnomalySummary.and.returnValue(
+      of({
+        totalProjects: 3,
+        criticalCount: 1,
+        highCount: 1,
+        mediumCount: 0,
+        lowCount: 0,
+        escalatedCount: 1,
+        topAnomalies: [
+          {
+            projectId: 'p1',
+            severity: 'CRITICAL',
+            anomalyScore: 94,
+            trend: 'regression',
+          },
+        ],
+      } as any)
+    );
+
     const fixture = TestBed.createComponent(EngineeringComponent);
     fixture.detectChanges();
 
@@ -102,6 +121,8 @@ describe('EngineeringComponent', () => {
     expect(component.regressionCount).toBe(1);
     expect(component.criticalEventCount).toBe(7);
     expect(component.deliveryPressure).toBe(59);
+    expect(component.modelHealthIndex).toBeLessThan(100);
+    expect(component.escalatedSignalRatio).toBe(33);
 
     expect(compiled.textContent).toContain('Top Hotspot Repositories');
     expect(compiled.textContent).toContain('Reliability Watchlist');
@@ -158,6 +179,18 @@ describe('EngineeringComponent', () => {
       ] as any)
     );
 
+    riskServiceSpy.getPortfolioAnomalySummary.and.returnValue(
+      of({
+        totalProjects: 2,
+        criticalCount: 0,
+        highCount: 1,
+        mediumCount: 0,
+        lowCount: 0,
+        escalatedCount: 1,
+        topAnomalies: [],
+      } as any)
+    );
+
     const fixture = TestBed.createComponent(EngineeringComponent);
     fixture.detectChanges();
 
@@ -171,6 +204,7 @@ describe('EngineeringComponent', () => {
     projectsServiceSpy.getProjects.and.returnValue(throwError(() => new Error('projects failure')));
     riskServiceSpy.refreshRiskScores.and.returnValue(throwError(() => new Error('risk failure')));
     riskServiceSpy.getPortfolioAnomalies.and.returnValue(throwError(() => new Error('anomaly failure')));
+    riskServiceSpy.getPortfolioAnomalySummary.and.returnValue(throwError(() => new Error('summary failure')));
 
     const fixture = TestBed.createComponent(EngineeringComponent);
     fixture.detectChanges();

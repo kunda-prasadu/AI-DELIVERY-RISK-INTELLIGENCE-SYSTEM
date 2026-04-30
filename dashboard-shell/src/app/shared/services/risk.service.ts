@@ -51,6 +51,21 @@ export interface ProjectAnomaly {
   };
 }
 
+export interface PortfolioAnomalySummary {
+  totalProjects: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  escalatedCount: number;
+  topAnomalies: Array<{
+    projectId: string;
+    severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+    anomalyScore: number;
+    trend: 'improving' | 'stable' | 'watch' | 'regression' | 'insufficient_data';
+  }>;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -171,6 +186,12 @@ export class RiskService {
         map((response) => response.anomalies || []),
         catchError(() => of([] as ProjectAnomaly[]))
       );
+  }
+
+  getPortfolioAnomalySummary(): Observable<PortfolioAnomalySummary | null> {
+    return this.http
+      .get<PortfolioAnomalySummary>(`${this.METRICS_BASE}/anomalies/summary`)
+      .pipe(catchError(() => of(null)));
   }
 
   getProjectAnomaly(projectId: string): Observable<ProjectAnomaly | null> {

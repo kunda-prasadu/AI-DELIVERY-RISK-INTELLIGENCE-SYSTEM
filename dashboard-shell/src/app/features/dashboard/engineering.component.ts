@@ -6,7 +6,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectItem, ProjectsService } from '../../shared/services/projects.service';
-import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { PortfolioAnomalySummary, ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
 
 interface EngineeringHotspot {
   projectId: string;
@@ -80,6 +80,40 @@ interface EngineeringHotspot {
           </mat-card-content>
         </mat-card>
       </div>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && anomalySummary">
+        <mat-card-header>
+          <mat-card-title>Model Monitoring Dashboard</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="stats-grid" style="margin-bottom: 0;">
+            <mat-card class="stat-card pressure">
+              <mat-card-content>
+                <p class="stat-value">{{ modelHealthIndex }}%</p>
+                <p class="stat-label">Model Health Index</p>
+              </mat-card-content>
+            </mat-card>
+            <mat-card class="stat-card trend">
+              <mat-card-content>
+                <p class="stat-value">{{ anomalySummary.escalatedCount }}</p>
+                <p class="stat-label">Escalated Signals</p>
+              </mat-card-content>
+            </mat-card>
+            <mat-card class="stat-card critical">
+              <mat-card-content>
+                <p class="stat-value">{{ anomalySummary.criticalCount }}</p>
+                <p class="stat-label">Critical Anomalies</p>
+              </mat-card-content>
+            </mat-card>
+            <mat-card class="stat-card events">
+              <mat-card-content>
+                <p class="stat-value">{{ escalatedSignalRatio }}%</p>
+                <p class="stat-label">Escalation Ratio</p>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <mat-card class="section-card" *ngIf="!loading && !errorMessage && hotspots.length">
         <mat-card-header>
@@ -332,6 +366,9 @@ export class EngineeringComponent implements OnInit {
   highRiskCount = 0;
   regressionCount = 0;
   criticalEventCount = 0;
+  anomalySummary: PortfolioAnomalySummary | null = null;
+  modelHealthIndex = 0;
+  escalatedSignalRatio = 0;
 
   constructor(
     private projectsService: ProjectsService,
@@ -356,16 +393,19 @@ export class EngineeringComponent implements OnInit {
       anomalies: this.riskService.getPortfolioAnomalies().pipe(
         catchError(() => of([] as ProjectAnomaly[]))
       ),
+      anomalySummary: this.riskService.getPortfolioAnomalySummary().pipe(
+        catchError(() => of(null))
+      ),
     })
       .pipe(finalize(() => {
         this.loading = false;
       }))
-      .subscribe(({ projects, riskScores, anomalies }) => {
-        this.buildInsights(projects.projects || [], riskScores, anomalies);
+      .subscribe(({ projects, riskScores, anomalies, anomalySummary }) => {
+        this.buildInsights(projects.projects || [], riskScores, anomalies, anomalySummary);
       });
   }
 
-  private buildInsights(projects: ProjectItem[], riskScores: RiskScore[], anomalies: ProjectAnomaly[]): void {
+  private buildInsights(projects: ProjectItem[], riskScores: RiskScore[], anomalies: ProjectAnomaly[], anomalySummary: PortfolioAnomalySummary | null): void {
     const projectMap = new Map(projects.map((project) => [project.id, project]));
     const anomalyMap = new Map(anomalies.map((anomaly) => [anomaly.projectId, anomaly]));
 
@@ -406,6 +446,30 @@ export class EngineeringComponent implements OnInit {
     this.deliveryPressure = this.hotspots.length
       ? Math.round(this.hotspots.reduce((sum, item) => sum + item.riskScore, 0) / this.hotspots.length)
       : 0;
+
+    this.anomalySummary = anomalySummary;
+    this.computeModelMonitoringStats();
+
+  }
+
+  private computeModelMonitoringStats(): void {
+    if (!this.anomalySummary) {
+      this.modelHealthIndex = 100;
+      this.escalatedSignalRatio = 0;
+      return;
+    }
+
+    const weightedIncidentScore =
+      (this.anomalySummary.criticalCount * 6) +
+      (this.anomalySummary.highCount * 4) +
+      (this.anomalySummary.mediumCount * 2) +
+      this.anomalySummary.lowCount;
+
+    const normalizedIncidentScore = Math.min(100, weightedIncidentScore);
+    this.modelHealthIndex = Math.max(0, 100 - normalizedIncidentScore);
+
+    const denominator = this.anomalySummary.totalProjects || 1;
+    this.escalatedSignalRatio = Math.round((this.anomalySummary.escalatedCount / denominator) * 100);
 
   }
 
