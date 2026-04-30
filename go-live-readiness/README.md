@@ -18,6 +18,7 @@ This package provides release-readiness artifacts for the AI Delivery Risk Intel
 npm run check
 npm run check:live
 npm run smoke
+npm run uat:signoff
 npm test
 ```
 
@@ -60,6 +61,14 @@ From repository root, you can also run a full release rehearsal:
 ```
 
 This generates a timestamped report under `go-live-readiness/reports/`.
+
+For R2 UAT final sign-off evidence generation, run:
+
+```bash
+npm run uat:signoff
+```
+
+This command runs static + live + smoke checks and writes `go-live-readiness/reports/latest-r2-uat-signoff.md`.
 
 For manually curated deployment evidence, update:
 

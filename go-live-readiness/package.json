@@ -8,6 +8,7 @@
     "check:live": "node scripts/readiness-check.js --live",
     "check:staging": "bash ./scripts/run-staging-checks.sh",
     "smoke": "node scripts/smoke-check.js",
+    "uat:signoff": "node scripts/r2-uat-signoff.js",
     "test": "node --test tests/*.test.js"
   }
 }
