@@ -172,6 +172,12 @@ export class SidebarComponent implements OnInit {
       route: '/risk',
       permissions: ['risk:read'],
     },
+    {
+      icon: 'history',
+      label: 'Audit Trail',
+      route: '/audit',
+      permissions: ['audit:read'],
+    },
   ];
 
   constructor(private authService: AuthService) {}

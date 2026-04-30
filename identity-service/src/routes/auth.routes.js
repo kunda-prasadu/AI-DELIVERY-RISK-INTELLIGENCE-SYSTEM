@@ -5,9 +5,10 @@ const Joi = require('joi');
 const rateLimit = require('express-rate-limit');
 const UserStore = require('../models/user.store');
 const TokenService = require('../models/token.service');
+const AuditStore = require('../models/audit.store');
 const { getPermissionsForRole, isValidRole, ROLES } = require('../models/rbac.model');
 const { authenticateJWT } = require('../middleware/auth.middleware');
-const { requireRole } = require('../middleware/rbac.middleware');
+const { requirePermission, requireRole } = require('../middleware/rbac.middleware');
 const config = require('../config/identity.config');
 const logger = require('../middleware/logger');
 
@@ -65,13 +66,46 @@ router.post('/register', authLimiter, async (req, res) => {
     UserStore.storeRefreshToken(refreshToken, user.id);
 
     logger.info('[Auth] User registered', { userId: user.id, role: user.role });
+    AuditStore.record({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'auth.register',
+      resourceType: 'user',
+      resourceId: user.id,
+      outcome: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: { email: user.email },
+    });
 
     return res.status(201).json({ user, accessToken, refreshToken });
   } catch (err) {
     if (err.code === 'DUPLICATE_EMAIL') {
+      AuditStore.record({
+        actorId: null,
+        actorRole: value.role || null,
+        action: 'auth.register',
+        resourceType: 'user',
+        resourceId: null,
+        outcome: 'FAILURE',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || null,
+        metadata: { email: value.email, code: err.code },
+      });
       return res.status(409).json({ error: 'Email already registered' });
     }
     logger.error('[Auth] Registration failed', { error: err.message });
+    AuditStore.record({
+      actorId: null,
+      actorRole: value.role || null,
+      action: 'auth.register',
+      resourceType: 'user',
+      resourceId: null,
+      outcome: 'FAILURE',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: { email: value.email, error: err.message },
+    });
     return res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -97,6 +131,17 @@ router.post('/login', authLimiter, async (req, res) => {
 
     if (!userRecord || !valid || !userRecord.active) {
       logger.warn('[Auth] Login failed', { email: value.email, ip: req.ip });
+      AuditStore.record({
+        actorId: userRecord?.id || null,
+        actorRole: userRecord?.role || null,
+        action: 'auth.login',
+        resourceType: 'session',
+        resourceId: userRecord?.id || null,
+        outcome: 'FAILURE',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || null,
+        metadata: { email: value.email },
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -108,10 +153,32 @@ router.post('/login', authLimiter, async (req, res) => {
     const { passwordHash: _, ...safeUser } = userRecord;
 
     logger.info('[Auth] Login successful', { userId: userRecord.id, role: userRecord.role });
+    AuditStore.record({
+      actorId: userRecord.id,
+      actorRole: userRecord.role,
+      action: 'auth.login',
+      resourceType: 'session',
+      resourceId: userRecord.id,
+      outcome: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: { email: userRecord.email },
+    });
 
     return res.status(200).json({ user: safeUser, accessToken, refreshToken });
   } catch (err) {
     logger.error('[Auth] Login error', { error: err.message });
+    AuditStore.record({
+      actorId: null,
+      actorRole: null,
+      action: 'auth.login',
+      resourceType: 'session',
+      resourceId: null,
+      outcome: 'FAILURE',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: { email: value.email, error: err.message },
+    });
     return res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -147,9 +214,32 @@ router.post('/refresh', async (req, res) => {
     const permissions = getPermissionsForRole(user.role);
     const accessToken = TokenService.issueAccessToken(user, permissions);
 
+    AuditStore.record({
+      actorId: user.id,
+      actorRole: user.role,
+      action: 'auth.refresh',
+      resourceType: 'session',
+      resourceId: user.id,
+      outcome: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: {},
+    });
+
     return res.status(200).json({ accessToken });
   } catch (err) {
     const message = err.name === 'TokenExpiredError' ? 'Refresh token expired' : 'Invalid refresh token';
+    AuditStore.record({
+      actorId: null,
+      actorRole: null,
+      action: 'auth.refresh',
+      resourceType: 'session',
+      resourceId: null,
+      outcome: 'FAILURE',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || null,
+      metadata: { error: message },
+    });
     return res.status(401).json({ error: message });
   }
 });
@@ -166,6 +256,17 @@ router.post('/logout', authenticateJWT, async (req, res) => {
     UserStore.revokeAllRefreshTokensForUser(req.user.id);
   }
   logger.info('[Auth] Logout', { userId: req.user.id });
+  AuditStore.record({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    action: 'auth.logout',
+    resourceType: 'session',
+    resourceId: req.user.id,
+    outcome: 'SUCCESS',
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent') || null,
+    metadata: {},
+  });
   return res.status(200).json({ message: 'Logged out successfully' });
 });
 
@@ -193,6 +294,21 @@ router.get('/users', authenticateJWT, requireRole(ROLES.ADMIN), (req, res) => {
   return res.status(200).json({ users: UserStore.listAll() });
 });
 
+router.get('/audit', authenticateJWT, requirePermission('audit:read'), (req, res) => {
+  const entries = AuditStore.list({
+    action: req.query.action,
+    outcome: req.query.outcome,
+    actorId: req.query.actorId,
+    limit: req.query.limit,
+  });
+
+  return res.status(200).json({
+    entries,
+    total: entries.length,
+    integrity: AuditStore.verifyIntegrity(),
+  });
+});
+
 // ── DELETE /auth/users/:id ─────────────────────────────────────────────────
 /**
  * Deactivate a user — admin only.
@@ -204,6 +320,17 @@ router.delete('/users/:id', authenticateJWT, requireRole(ROLES.ADMIN), (req, res
   }
   UserStore.revokeAllRefreshTokensForUser(req.params.id);
   logger.info('[Auth] User deactivated', { targetUserId: req.params.id, by: req.user.id });
+  AuditStore.record({
+    actorId: req.user.id,
+    actorRole: req.user.role,
+    action: 'auth.user.deactivate',
+    resourceType: 'user',
+    resourceId: req.params.id,
+    outcome: 'SUCCESS',
+    ipAddress: req.ip,
+    userAgent: req.get('user-agent') || null,
+    metadata: {},
+  });
   return res.status(200).json({ message: 'User deactivated' });
 });
 

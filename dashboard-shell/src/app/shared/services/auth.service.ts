@@ -52,10 +52,10 @@ export class AuthService {
   private readonly USER_KEY = 'ri_auth_user';
   private readonly ACCESS_TOKEN_KEY = 'ri_access_token';
   private readonly REFRESH_TOKEN_KEY = 'ri_refresh_token';
-  private readonly SEEDED_DEMO_EMAIL = 'delivery.manager@ai-risk-demo.com';
+  private readonly SEEDED_DEMO_EMAIL = 'admin@ai-delivery-risk.io';
   private readonly SEEDED_DEMO_PASSWORD = 'Admin@12345!';
-  private readonly SEEDED_DEMO_NAME = 'Delivery Manager';
-  private readonly SEEDED_DEMO_ROLE = 'delivery_manager';
+  private readonly SEEDED_DEMO_NAME = 'System Admin';
+  private readonly SEEDED_DEMO_ROLE = 'admin';
 
   private userSubject = new BehaviorSubject<AuthUser | null>(this.loadUser());
   public user$: Observable<AuthUser | null> = this.userSubject.asObservable();
@@ -153,12 +153,19 @@ export class AuthService {
   private seedDemoUserFallback(): AuthUser {
     const demoUser: AuthUser = {
       id: 'demo-user-001',
-      email: 'delivery@example.com',
-      role: 'delivery_manager',
+      email: 'admin@ai-delivery-risk.io',
+      role: 'admin',
       permissions: [
+        'audit:read',
+        'alerts:read',
+        'connectors:manage',
         'projects:read',
         'projects:write',
+        'reports:read',
+        'reports:generate',
         'risk:read',
+        'users:read',
+        'users:write',
         'recommendations:assign',
       ],
     };

@@ -143,7 +143,7 @@ const UserStore = {
   async _seedAdmin() {
     if (_usersById.size === 0) {
       await UserStore.create({
-        email: 'admin@ai-delivery-risk.local',
+        email: 'admin@ai-delivery-risk.io',
         password: 'Admin@12345!',
         name: 'System Admin',
         role: ROLES.ADMIN,

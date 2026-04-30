@@ -35,6 +35,10 @@ export const routes: Routes = [
         path: 'actions',
         loadComponent: () => import('./features/dashboard/actions.component').then(m => m.ActionsComponent),
       },
+      {
+        path: 'audit',
+        loadComponent: () => import('./features/security/audit-trail.component').then(m => m.AuditTrailComponent),
+      },
     ],
   },
   { path: '**', redirectTo: 'dashboard' },

@@ -1,5 +1,6 @@
 'use strict';
 
+const AuditStore = require('../models/audit.store');
 const { hasPermission } = require('../models/rbac.model');
 const logger = require('./logger');
 
@@ -30,6 +31,17 @@ function requirePermission(permission) {
         path: req.path,
         method: req.method,
       });
+      AuditStore.record({
+        actorId: id,
+        actorRole: role,
+        action: 'rbac.permission.denied',
+        resourceType: 'permission',
+        resourceId: permission,
+        outcome: 'FAILURE',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || null,
+        metadata: { path: req.path, method: req.method },
+      });
       return res.status(403).json({
         error: 'Forbidden',
         detail: `Role '${role}' does not have permission '${permission}'`,
@@ -58,6 +70,17 @@ function requireRole(...allowedRoles) {
         role: req.user.role,
         allowedRoles,
         path: req.path,
+      });
+      AuditStore.record({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: 'rbac.role.denied',
+        resourceType: 'role',
+        resourceId: allowedRoles.join(','),
+        outcome: 'FAILURE',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || null,
+        metadata: { path: req.path },
       });
       return res.status(403).json({
         error: 'Forbidden',

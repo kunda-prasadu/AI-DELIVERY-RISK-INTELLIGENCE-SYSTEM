@@ -4,6 +4,7 @@
 jest.mock('express-rate-limit', () => () => (req, res, next) => next());
 
 const request = require('supertest');
+const AuditStore = require('../src/models/audit.store');
 const UserStore = require('../src/models/user.store');
 const { ROLES } = require('../src/models/rbac.model');
 
@@ -21,7 +22,10 @@ app.use('/auth', authRoutes);
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
 
-beforeEach(() => UserStore._reset());
+beforeEach(() => {
+  UserStore._reset();
+  AuditStore.clear();
+});
 
 const adminUser = {
   email: 'admin@test.com',
@@ -200,6 +204,52 @@ describe('GET /auth/users', () => {
     const res = await request(app)
       .get('/auth/users')
       .set('Authorization', `Bearer ${regularToken}`);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /auth/audit', () => {
+  let adminToken, regularToken;
+
+  beforeEach(async () => {
+    const adminRes = await request(app).post('/auth/register').send(adminUser);
+    adminToken = adminRes.body.accessToken;
+
+    const regularRes = await request(app).post('/auth/register').send(regularUser);
+    regularToken = regularRes.body.accessToken;
+
+    await request(app).post('/auth/login').send({
+      email: regularUser.email,
+      password: regularUser.password,
+    });
+  });
+
+  test('admin can read audit entries with integrity summary', async () => {
+    const res = await request(app)
+      .get('/auth/audit')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.entries)).toBe(true);
+    expect(res.body.total).toBeGreaterThan(0);
+    expect(res.body.integrity.valid).toBe(true);
+    expect(res.body.entries.some((entry) => entry.action === 'auth.login')).toBe(true);
+  });
+
+  test('supports filtering audit entries by action', async () => {
+    const res = await request(app)
+      .get('/auth/audit?action=auth.login')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.entries.every((entry) => entry.action === 'auth.login')).toBe(true);
+  });
+
+  test('non-admin without audit permission gets 403', async () => {
+    const res = await request(app)
+      .get('/auth/audit')
+      .set('Authorization', `Bearer ${regularToken}`);
+
     expect(res.status).toBe(403);
   });
 });
