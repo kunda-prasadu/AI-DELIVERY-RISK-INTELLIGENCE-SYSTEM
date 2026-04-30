@@ -278,6 +278,8 @@ interface TelemetryNavigatorPreferences {
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <button mat-stroked-button type="button" (click)="applyTelemetryNavigatorPreset('focus')">Preset Focus</button>
+                <button mat-stroked-button type="button" (click)="applyTelemetryNavigatorPreset('explore')">Preset Explore</button>
                 <button mat-stroked-button type="button" (click)="resetTelemetryNavigatorPreferences()">Reset Nav Prefs</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorPinnedOnlyMode()" [disabled]="!telemetryNavigatorPinnedTimestamps.length && !telemetryNavigatorPinnedOnlyMode">Pinned Only {{ telemetryNavigatorPinnedOnlyMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="pinVisibleTelemetryNavigatorPoints()" [disabled]="!canPinVisibleTelemetryNavigatorPoints()">Pin Visible</button>
@@ -1281,6 +1283,26 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPageSize = 8;
     this.telemetryNavigatorMinRate = 0;
     this.telemetryNavigatorPinnedOnlyMode = false;
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
+  }
+
+  applyTelemetryNavigatorPreset(preset: 'focus' | 'explore'): void {
+    if (preset === 'focus') {
+      this.telemetryNavigatorContinuousMode = false;
+      this.telemetryNavigatorSortOrder = 'newest';
+      this.telemetryNavigatorPageSize = 5;
+      this.telemetryNavigatorMinRate = 60;
+      this.telemetryNavigatorPinnedOnlyMode = false;
+    } else {
+      this.telemetryNavigatorContinuousMode = true;
+      this.telemetryNavigatorSortOrder = 'oldest';
+      this.telemetryNavigatorPageSize = 15;
+      this.telemetryNavigatorMinRate = 0;
+      this.telemetryNavigatorPinnedOnlyMode = false;
+    }
+
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
     this.persistTelemetryNavigatorPreferences();

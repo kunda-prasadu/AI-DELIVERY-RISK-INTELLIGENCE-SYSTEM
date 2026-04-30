@@ -1327,6 +1327,70 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should apply telemetry navigator presets and persist resulting preferences', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 55 }, (_, index) => ({
+      timestamp: now - ((54 - index) * 30 * 60 * 1000),
+      openCount: Math.max(55 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 20, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.applyTelemetryNavigatorPreset('focus');
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('newest');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(5);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(60);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+
+      const persistedFocus = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        continuousMode: boolean;
+        sortOrder: string;
+        pageSize: number;
+        minRate: number;
+        pinnedOnlyMode: boolean;
+      };
+
+      expect(persistedFocus.continuousMode).toBeFalse();
+      expect(persistedFocus.sortOrder).toBe('newest');
+      expect(persistedFocus.pageSize).toBe(5);
+      expect(persistedFocus.minRate).toBe(60);
+      expect(persistedFocus.pinnedOnlyMode).toBeFalse();
+
+      secondComponent.applyTelemetryNavigatorPreset('explore');
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeTrue();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('oldest');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+
+      const persistedExplore = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        continuousMode: boolean;
+        sortOrder: string;
+        pageSize: number;
+        minRate: number;
+        pinnedOnlyMode: boolean;
+      };
+
+      expect(persistedExplore.continuousMode).toBeTrue();
+      expect(persistedExplore.sortOrder).toBe('oldest');
+      expect(persistedExplore.pageSize).toBe(15);
+      expect(persistedExplore.minRate).toBe(0);
+      expect(persistedExplore.pinnedOnlyMode).toBeFalse();
+      done();
+    }, 100);
+  });
+
   it('should export the current telemetry window as CSV', (done) => {
     const now = Date.now();
     const seed = [
