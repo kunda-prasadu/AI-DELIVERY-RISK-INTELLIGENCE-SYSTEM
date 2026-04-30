@@ -99,7 +99,7 @@ describe('DashboardComponent', () => {
         return of({
           trend: 'worsening',
           snapshots: [
-            { snapshotAt: '2026-04-30T04:22:00.000Z', riskScore: 82, band: 'CRITICAL', criticalCount: 4, totalEvents: 7 },
+            { snapshotAt: '2026-04-28T04:22:00.000Z', riskScore: 82, band: 'CRITICAL', criticalCount: 4, totalEvents: 7 },
           ],
         } as any);
       }
@@ -107,7 +107,7 @@ describe('DashboardComponent', () => {
         return of({
           trend: 'stable',
           snapshots: [
-            { snapshotAt: '2026-04-30T04:21:00.000Z', riskScore: 30, band: 'LOW', criticalCount: 0, totalEvents: 2 },
+            { snapshotAt: new Date().toISOString(), riskScore: 30, band: 'LOW', criticalCount: 0, totalEvents: 2 },
           ],
         } as any);
       }
@@ -146,11 +146,14 @@ describe('DashboardComponent', () => {
     expect(component.metrics.openHighRisks).toBe(1);
     expect(component.metrics.avgProbability).toBe(56);
     expect(component.projectTrendDirections['p1']).toBe('worsening');
-    expect(component.projectTrendUpdatedAt['p1']).toBe('2026-04-30T04:22:00.000Z');
+    expect(component.projectTrendUpdatedAt['p1']).toBe('2026-04-28T04:22:00.000Z');
+    expect(component.projectTrendAgeStatus['p1']).toBe('stale');
+    expect(component.projectTrendAgeStatus['p2']).toBe('fresh');
     expect(compiled.textContent).toContain('Project One');
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');
     expect(compiled.textContent).toContain('Worsening');
+    expect(compiled.textContent).toContain('Stale');
     expect(compiled.textContent).toContain('Anomaly Radar');
     expect(compiled.textContent).toContain('Active Alerts');
     expect(compiled.textContent).toContain('Risk score exceeded threshold.');

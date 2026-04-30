@@ -11,7 +11,7 @@ import { ProjectAnomaly, ProjectRiskTrend, RiskScore, RiskService } from '../../
 import { AlertService, ProjectAlert } from '../../shared/services/alert.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
-import { RiskScoreCardComponent, TrendDirection } from '../../shared/components/risk-score-card.component';
+import { RiskScoreCardComponent, TrendAgeStatus, TrendDirection } from '../../shared/components/risk-score-card.component';
 
 interface DashboardMetrics {
   openHighRisks: number;
@@ -124,6 +124,7 @@ interface DashboardMetrics {
               [trendLoading]="projectTrendLoading[risk.projectId] === true"
               [trendDirection]="projectTrendDirections[risk.projectId] || null"
               [trendLastUpdated]="projectTrendUpdatedAt[risk.projectId] || null"
+              [trendAgeStatus]="projectTrendAgeStatus[risk.projectId] || null"
             ></app-risk-score-card>
           </div>
         </mat-card-content>
@@ -438,6 +439,7 @@ export class DashboardComponent implements OnInit {
   projectTrendDirections: Record<string, TrendDirection> = {};
   projectTrendLoading: Record<string, boolean> = {};
   projectTrendUpdatedAt: Record<string, string | null> = {};
+  projectTrendAgeStatus: Record<string, TrendAgeStatus> = {};
 
   constructor(
     private projectsService: ProjectsService,
@@ -517,6 +519,7 @@ export class DashboardComponent implements OnInit {
       this.projectTrendDirections = {};
       this.projectTrendLoading = {};
       this.projectTrendUpdatedAt = {};
+      this.projectTrendAgeStatus = {};
       return;
     }
 
@@ -528,6 +531,10 @@ export class DashboardComponent implements OnInit {
       acc[projectId] = null;
       return acc;
     }, {} as Record<string, string | null>);
+    this.projectTrendAgeStatus = topScorecardIds.reduce((acc, projectId) => {
+      acc[projectId] = null;
+      return acc;
+    }, {} as Record<string, TrendAgeStatus>);
 
     const trendRequests = topScorecardIds.map((projectId) =>
       this.riskService.getProjectRiskTrend(projectId).pipe(catchError(() => of(null)))
@@ -537,16 +544,20 @@ export class DashboardComponent implements OnInit {
       const nextTrends: Record<string, TrendDirection> = {};
       const nextLoading: Record<string, boolean> = {};
       const nextUpdatedAt: Record<string, string | null> = {};
+      const nextAgeStatus: Record<string, TrendAgeStatus> = {};
       trends.forEach((trend, index) => {
         const projectId = topScorecardIds[index];
         const trendPayload = trend as ProjectRiskTrend | null;
         nextTrends[projectId] = trendPayload?.trend ?? 'insufficient_data';
         nextLoading[projectId] = false;
-        nextUpdatedAt[projectId] = this.getLatestTrendSnapshotAt(trendPayload);
+        const latestSnapshotAt = this.getLatestTrendSnapshotAt(trendPayload);
+        nextUpdatedAt[projectId] = latestSnapshotAt;
+        nextAgeStatus[projectId] = this.getTrendAgeStatus(latestSnapshotAt);
       });
       this.projectTrendDirections = nextTrends;
       this.projectTrendLoading = nextLoading;
       this.projectTrendUpdatedAt = nextUpdatedAt;
+      this.projectTrendAgeStatus = nextAgeStatus;
     });
   }
 
@@ -555,6 +566,14 @@ export class DashboardComponent implements OnInit {
       return null;
     }
     return trend.snapshots[trend.snapshots.length - 1].snapshotAt;
+  }
+
+  private getTrendAgeStatus(snapshotAt: string | null): TrendAgeStatus {
+    if (!snapshotAt) {
+      return null;
+    }
+    const ageMs = Date.now() - new Date(snapshotAt).getTime();
+    return ageMs <= 24 * 60 * 60 * 1000 ? 'fresh' : 'stale';
   }
 
   getAlertSeverityChipClass(alert: ProjectAlert): string {

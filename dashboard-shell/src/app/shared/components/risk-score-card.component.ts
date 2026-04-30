@@ -6,6 +6,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { RiskScore, RiskService } from '../services/risk.service';
 
 export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficient_data' | null;
+export type TrendAgeStatus = 'fresh' | 'stale' | null;
 
 @Component({
   selector: 'app-risk-score-card',
@@ -78,8 +79,11 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
           </span>
         </div>
 
-        <div class="trend-meta" *ngIf="!trendLoading && trendDirection && trendLastUpdated">
-          <small>Trend refreshed {{ trendLastUpdated | date: 'shortTime' }}</small>
+        <div class="trend-meta" *ngIf="!trendLoading && trendDirection && (trendLastUpdated || trendAgeStatus)">
+          <small *ngIf="trendLastUpdated">Trend refreshed {{ trendLastUpdated | date: 'shortTime' }}</small>
+          <span class="trend-age-chip" *ngIf="trendAgeStatus" [class]="'age-' + trendAgeStatus">
+            {{ trendAgeStatus === 'fresh' ? 'Fresh' : 'Stale' }}
+          </span>
         </div>
       </mat-card-content>
     </mat-card>
@@ -187,8 +191,30 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
 
     .trend-meta {
       margin-top: 4px;
-      text-align: center;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
       color: var(--ri-on-surface-variant);
+    }
+
+    .trend-age-chip {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border-radius: 999px;
+      padding: 2px 8px;
+    }
+
+    .age-fresh {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+
+    .age-stale {
+      background: #fff8e1;
+      color: #8a5a00;
     }
 
     .trend-loading-chip {
@@ -225,6 +251,7 @@ export class RiskScoreCardComponent {
   @Input() trendDirection: TrendDirection = null;
   @Input() trendLoading = false;
   @Input() trendLastUpdated: string | null = null;
+  @Input() trendAgeStatus: TrendAgeStatus = null;
 
   constructor(public riskService: RiskService) {}
 

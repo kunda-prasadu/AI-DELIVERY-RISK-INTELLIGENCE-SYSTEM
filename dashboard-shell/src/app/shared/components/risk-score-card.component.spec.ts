@@ -125,4 +125,16 @@ describe('RiskScoreCardComponent', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.textContent).toContain('Trend refreshed');
   });
+
+  it('should render fresh trend age status chip when trendAgeStatus is fresh', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'stable';
+    fixture.componentInstance.trendAgeStatus = 'fresh';
+    fixture.detectChanges();
+
+    const chip = fixture.nativeElement.querySelector('.age-fresh') as HTMLElement;
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toContain('Fresh');
+  });
 });
