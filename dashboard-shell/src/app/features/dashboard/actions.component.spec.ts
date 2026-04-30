@@ -979,6 +979,52 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should export the current telemetry window as CSV', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 30 * 60 * 1000), openCount: 5, inProgressCount: 1, completedCount: 2, adoptionRate: 30 },
+      { timestamp: now - (1 * 30 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 3, adoptionRate: 40 },
+      { timestamp: now, openCount: 3, inProgressCount: 1, completedCount: 4, adoptionRate: 50 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+
+      let capturedBlob: Blob | null = null;
+      const clickSpy = spyOn(HTMLAnchorElement.prototype, 'click').and.stub();
+      const createObjectURLSpy = spyOn(URL, 'createObjectURL').and.callFake((blob: Blob) => {
+        capturedBlob = blob;
+        return 'blob:telemetry';
+      });
+      const revokeObjectURLSpy = spyOn(URL, 'revokeObjectURL').and.stub();
+      const appendChildSpy = spyOn(document.body, 'appendChild').and.callThrough();
+      const removeChildSpy = spyOn(document.body, 'removeChild').and.callThrough();
+
+      secondComponent.exportTelemetryWindowCsv();
+
+      expect(createObjectURLSpy).toHaveBeenCalled();
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:telemetry');
+      expect(appendChildSpy).toHaveBeenCalled();
+      expect(removeChildSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalled();
+      expect(capturedBlob).toBeTruthy();
+
+      capturedBlob!.text().then((csvText) => {
+        const [header, firstRow] = csvText.split('\n');
+        expect(header).toBe('timestamp_iso,timestamp_ms,adoption_rate,completed_count,in_progress_count,open_count');
+        expect(firstRow).toContain(',');
+        expect(csvText).toContain('adoption_rate');
+        done();
+      });
+    }, 100);
+  });
+
   it('should compute signed adoption deltas for telemetry navigator snapshots', (done) => {
     const now = Date.now();
     const seed = [

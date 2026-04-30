@@ -143,6 +143,9 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
               <button mat-stroked-button type="button" (click)="panTelemetryWindow('newer')" [disabled]="!canPanTelemetryNewer()">
                 Newer
               </button>
+              <button mat-stroked-button type="button" (click)="exportTelemetryWindowCsv()">
+                Export CSV
+              </button>
             </div>
             <div class="telemetry-zoom-row" style="display:flex;gap:8px;flex-wrap:wrap;">
               <button
@@ -1139,6 +1142,37 @@ export class ActionsComponent implements OnInit {
     this.clampTelemetryNavigatorOffset();
   }
 
+  exportTelemetryWindowCsv(): void {
+    const points = this.getTelemetryWindowPoints();
+    if (!points.length) {
+      return;
+    }
+
+    const headers = ['timestamp_iso', 'timestamp_ms', 'adoption_rate', 'completed_count', 'in_progress_count', 'open_count'];
+    const rows = points.map((point) => [
+      new Date(point.timestamp).toISOString(),
+      point.timestamp,
+      point.adoptionRate,
+      point.completedCount,
+      point.inProgressCount,
+      point.openCount,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => this.escapeTelemetryCsvValue(String(value))).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `telemetry-window-${this.selectedTelemetryWindow}-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   canPanTelemetryOlder(): boolean {
     return this.telemetryPanOffsetSteps < this.getMaxTelemetryPanOffsetSteps();
   }
@@ -1260,6 +1294,14 @@ export class ActionsComponent implements OnInit {
 
   private clampTelemetryNavigatorOffset(): void {
     this.telemetryNavigatorOffset = Math.max(0, Math.min(this.telemetryNavigatorOffset, this.getMaxTelemetryNavigatorOffset()));
+  }
+
+  private escapeTelemetryCsvValue(value: string): string {
+    if (/[",\n]/.test(value)) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+
+    return value;
   }
 
   buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
