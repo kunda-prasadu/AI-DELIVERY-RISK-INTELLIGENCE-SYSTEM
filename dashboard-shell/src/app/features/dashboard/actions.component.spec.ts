@@ -465,4 +465,56 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should build overlay polylines for adoption, completed, and in-progress trend series', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (60 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 2, inProgressCount: 1, completedCount: 2, adoptionRate: 60 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+      const points = secondComponent.getTelemetryWindowPoints();
+
+      expect(secondComponent.telemetrySeries.map((series) => series.key)).toEqual(['adoption', 'completed', 'inProgress']);
+      expect(secondComponent.buildTelemetryPolyline(points, 'adoption')).not.toBe('');
+      expect(secondComponent.buildTelemetryPolyline(points, 'completed')).not.toBe('');
+      expect(secondComponent.buildTelemetryPolyline(points, 'inProgress')).not.toBe('');
+      done();
+    }, 100);
+  });
+
+  it('should derive per-series rates for the active telemetry point', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 2, inProgressCount: 1, completedCount: 2, adoptionRate: 60 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+      const activePoint = secondComponent.getActiveTelemetryPoint();
+
+      expect(activePoint).toBeTruthy();
+      expect(secondComponent.getTelemetryRateForPoint(activePoint!, 'completed')).toBe(40);
+      expect(secondComponent.getTelemetryRateForPoint(activePoint!, 'inProgress')).toBe(20);
+      expect(secondComponent.getTelemetryChartAriaLabel()).toContain('completed');
+      expect(secondComponent.getTelemetryChartAriaLabel()).toContain('in progress');
+      done();
+    }, 100);
+  });
 });

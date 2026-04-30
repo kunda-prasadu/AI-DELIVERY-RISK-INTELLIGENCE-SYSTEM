@@ -39,6 +39,14 @@ interface TelemetryChartPoint {
   point: AdoptionTelemetryPoint;
 }
 
+type TelemetrySeriesKey = 'adoption' | 'completed' | 'inProgress';
+
+interface TelemetrySeriesDefinition {
+  key: TelemetrySeriesKey;
+  label: string;
+  color: string;
+}
+
 type TelemetryWindow = '1h' | '24h' | '7d';
 
 @Component({
@@ -140,12 +148,14 @@ type TelemetryWindow = '1h' | '24h' | '7d';
                 stroke="#ece8ff"
                 stroke-width="1"></line>
               <polyline
-                [attr.points]="buildTelemetryPolyline(getTelemetryWindowPoints())"
+                *ngFor="let series of telemetrySeries; let first = first"
+                [attr.points]="buildTelemetryPolyline(getTelemetryWindowPoints(), series.key)"
                 fill="none"
-                stroke="#3525cd"
-                stroke-width="3"
+                [attr.stroke]="series.color"
+                [attr.stroke-width]="first ? 3 : 2"
                 stroke-linecap="round"
-                stroke-linejoin="round"></polyline>
+                stroke-linejoin="round"
+                [attr.stroke-opacity]="first ? 1 : 0.92"></polyline>
               <circle
                 *ngFor="let chartPoint of getTelemetryChartPoints()"
                 class="telemetry-point"
@@ -160,6 +170,12 @@ type TelemetryWindow = '1h' | '24h' | '7d';
                 (blur)="clearHoveredTelemetryPoint()">
               </circle>
             </svg>
+            <div class="telemetry-legend-row">
+              <span class="telemetry-legend-item" *ngFor="let series of telemetrySeries">
+                <span class="telemetry-legend-swatch" [style.background]="series.color"></span>
+                {{ series.label }}
+              </span>
+            </div>
             <div class="telemetry-scale-row">
               <span>Low {{ getTelemetryWindowLowRate() }}%</span>
               <span>High {{ getTelemetryWindowPeakRate() }}%</span>
@@ -176,6 +192,7 @@ type TelemetryWindow = '1h' | '24h' | '7d';
             <div class="telemetry-tooltip" *ngIf="getActiveTelemetryPoint() as activePoint">
               <strong>{{ activePoint.adoptionRate }}% adoption</strong>
               <span>{{ formatDateTime(activePoint.timestamp) }}</span>
+              <span>Completed {{ getTelemetryRateForPoint(activePoint, 'completed') }}% · In Progress {{ getTelemetryRateForPoint(activePoint, 'inProgress') }}%</span>
               <span>{{ activePoint.completedCount }} completed · {{ activePoint.inProgressCount }} in progress · {{ activePoint.openCount }} open</span>
             </div>
           </div>
@@ -426,8 +443,6 @@ type TelemetryWindow = '1h' | '24h' | '7d';
       stroke: #3525cd;
       stroke-width: 2;
       cursor: pointer;
-      transition: fill 120ms ease, transform 120ms ease;
-      transform-origin: center;
     }
 
     .telemetry-point:hover,
@@ -435,7 +450,6 @@ type TelemetryWindow = '1h' | '24h' | '7d';
     .telemetry-point-active {
       fill: #3525cd;
       outline: none;
-      transform: scale(1.05);
     }
 
     .telemetry-scale-row,
@@ -446,6 +460,23 @@ type TelemetryWindow = '1h' | '24h' | '7d';
       font-size: 11px;
       color: var(--ri-on-surface-variant);
       margin-top: 6px;
+    }
+
+    .telemetry-legend-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .telemetry-legend-item {
+      gap: 6px;
+    }
+
+    .telemetry-legend-swatch {
+      width: 10px;
+      height: 10px;
+      display: inline-block;
     }
 
     .telemetry-chart-meta {
@@ -461,17 +492,11 @@ type TelemetryWindow = '1h' | '24h' | '7d';
     .telemetry-tooltip {
       margin-top: 10px;
       display: grid;
-      gap: 2px;
       padding: 10px 12px;
       border-radius: 8px;
       background: rgba(53, 37, 205, 0.08);
       color: var(--ri-on-surface);
       font-size: 12px;
-    }
-
-    .telemetry-tooltip strong {
-      color: #24189a;
-      font-size: 13px;
     }
 
     .telemetry-hint {
@@ -670,6 +695,11 @@ export class ActionsComponent implements OnInit {
   adoptionTelemetry: AdoptionTelemetryPoint[] = [];
   selectedTelemetryWindow: TelemetryWindow = '24h';
   hoveredTelemetryPoint: AdoptionTelemetryPoint | null = null;
+  readonly telemetrySeries: TelemetrySeriesDefinition[] = [
+    { key: 'adoption', label: 'Adoption', color: '#3525cd' },
+    { key: 'completed', label: 'Completed', color: '#0f9d58' },
+    { key: 'inProgress', label: 'In Progress', color: '#ff8f00' },
+  ];
 
   constructor(
     private riskService: RiskService,
@@ -950,11 +980,11 @@ export class ActionsComponent implements OnInit {
   }
 
   getTelemetryChartPoints(): TelemetryChartPoint[] {
-    return this.buildTelemetryChartPoints(this.getTelemetryWindowPoints());
+    return this.buildTelemetryChartPoints(this.getTelemetryWindowPoints(), 'adoption');
   }
 
-  buildTelemetryPolyline(points: AdoptionTelemetryPoint[]): string {
-    const chartPoints = this.buildTelemetryChartPoints(points);
+  buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
+    const chartPoints = this.buildTelemetryChartPoints(points, series);
     if (chartPoints.length < 2) {
       return '';
     }
@@ -966,7 +996,7 @@ export class ActionsComponent implements OnInit {
 
   getTelemetryWindowLowRate(): number {
     const points = this.getTelemetryWindowPoints();
-    return points.length ? Math.min(...points.map((point) => point.adoptionRate)) : 0;
+    return points.length ? Math.min(...points.map((point) => this.getTelemetryRateForPoint(point, 'adoption'))) : 0;
   }
 
   getTelemetryWindowStartRate(): number {
@@ -976,7 +1006,24 @@ export class ActionsComponent implements OnInit {
 
   getTelemetryWindowPeakRate(): number {
     const points = this.getTelemetryWindowPoints();
-    return points.length ? Math.max(...points.map((point) => point.adoptionRate)) : 0;
+    return points.length ? Math.max(...points.map((point) => this.getTelemetryRateForPoint(point, 'adoption'))) : 0;
+  }
+
+  getTelemetryRateForPoint(point: AdoptionTelemetryPoint, series: TelemetrySeriesKey): number {
+    const total = point.openCount + point.inProgressCount + point.completedCount;
+    if (!total) {
+      return 0;
+    }
+
+    if (series === 'completed') {
+      return Math.round((point.completedCount / total) * 100);
+    }
+
+    if (series === 'inProgress') {
+      return Math.round((point.inProgressCount / total) * 100);
+    }
+
+    return point.adoptionRate;
   }
 
   getTelemetryWindowStartLabel(): string {
@@ -1021,7 +1068,7 @@ export class ActionsComponent implements OnInit {
       return 'Adoption trend chart';
     }
 
-    return `Adoption trend chart from ${this.getTelemetryWindowStartLabel()} to ${this.getTelemetryWindowEndLabel()}, current highlighted point ${activePoint.adoptionRate} percent adoption at ${this.formatDateTime(activePoint.timestamp)}`;
+    return `Adoption trend chart from ${this.getTelemetryWindowStartLabel()} to ${this.getTelemetryWindowEndLabel()}, current highlighted point ${activePoint.adoptionRate} percent adoption with ${this.getTelemetryRateForPoint(activePoint, 'completed')} percent completed and ${this.getTelemetryRateForPoint(activePoint, 'inProgress')} percent in progress at ${this.formatDateTime(activePoint.timestamp)}`;
   }
 
   private getWindowDurationMs(window: TelemetryWindow): number {
@@ -1036,13 +1083,14 @@ export class ActionsComponent implements OnInit {
     return 7 * 24 * 60 * 60 * 1000;
   }
 
-  private buildTelemetryChartPoints(points: AdoptionTelemetryPoint[]): TelemetryChartPoint[] {
+  private buildTelemetryChartPoints(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey): TelemetryChartPoint[] {
     if (!points.length) {
       return [];
     }
 
-    const minRate = Math.min(...points.map((point) => point.adoptionRate));
-    const maxRate = Math.max(...points.map((point) => point.adoptionRate));
+    const seriesRates = points.map((point) => this.getTelemetryRateForPoint(point, series));
+    const minRate = Math.min(...seriesRates);
+    const maxRate = Math.max(...seriesRates);
     const rateSpan = Math.max(maxRate - minRate, 1);
 
     const firstTs = points[0].timestamp;
@@ -1050,8 +1098,9 @@ export class ActionsComponent implements OnInit {
     const tsSpan = Math.max(lastTs - firstTs, 1);
 
     return points.map((point) => {
+      const rate = this.getTelemetryRateForPoint(point, series);
       const x = ((point.timestamp - firstTs) / tsSpan) * (this.chartWidth - 8) + 4;
-      const y = this.chartHeight - (((point.adoptionRate - minRate) / rateSpan) * (this.chartHeight - 12) + 6);
+      const y = this.chartHeight - (((rate - minRate) / rateSpan) * (this.chartHeight - 12) + 6);
       return {
         x,
         y,
