@@ -6,11 +6,20 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { RiskScore, RiskService } from '../../shared/services/risk.service';
+import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
+import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
 
 @Component({
   selector: 'app-risk',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    RiskHeatmapComponent,
+    RiskScoreCardComponent,
+  ],
   template: `
     <div class="page-container">
       <h1 class="text-display-lg">Risk Analysis</h1>
@@ -68,27 +77,25 @@ import { RiskScore, RiskService } from '../../shared/services/risk.service';
         </mat-card>
       </div>
 
-      <div class="risk-grid" *ngIf="!loading && !errorMessage && riskScores.length">
-        <mat-card class="risk-card" *ngFor="let score of riskScores">
-          <mat-card-header>
-            <mat-card-title>{{ score.projectName }}</mat-card-title>
-            <mat-card-subtitle>{{ score.projectId }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <div class="score-row">
-              <span class="score">{{ score.score }}</span>
-              <span class="band" [class]="'band-' + score.band.toLowerCase()">{{ score.band }}</span>
-            </div>
-            <p class="signals-title">Signal profile</p>
-            <div class="signals-grid">
-              <span>Code Velocity: {{ score.signals.codeVelocity }}</span>
-              <span>Quality: {{ score.signals.quality }}</span>
-              <span>CI/CD: {{ score.signals.cicd }}</span>
-              <span>Jira Velocity: {{ score.signals.jiraVelocity }}</span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && riskScores.length">
+        <mat-card-header>
+          <mat-card-title>Portfolio Risk Heatmap</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <app-risk-heatmap [riskScores]="riskScores"></app-risk-heatmap>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && riskScores.length">
+        <mat-card-header>
+          <mat-card-title>Detailed Risk Scorecards</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="risk-grid">
+            <app-risk-score-card *ngFor="let score of riskScores" [riskScore]="score"></app-risk-score-card>
+          </div>
+        </mat-card-content>
+      </mat-card>
 
       <mat-card class="state-card" *ngIf="!loading && !errorMessage && !riskScores.length">
         <mat-card-content>
@@ -170,76 +177,16 @@ import { RiskScore, RiskService } from '../../shared/services/risk.service';
     .stat-card.medium .stat-value { color: #f9a825; }
     .stat-card.low .stat-value { color: #2e7d32; }
 
+    .section-card {
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
     .risk-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
       gap: 16px;
-    }
-
-    .risk-card {
-      background: white;
-      border-radius: 8px;
-    }
-
-    .score-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 10px;
-    }
-
-    .score {
-      font-size: 30px;
-      font-weight: 700;
-      line-height: 1;
-      color: var(--ri-primary);
-    }
-
-    .band {
-      font-size: 12px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 999px;
-      letter-spacing: 0.3px;
-    }
-
-    .band-critical {
-      background: #ffebee;
-      color: #ba1a1a;
-    }
-
-    .band-high {
-      background: #ffe8cc;
-      color: #f57c00;
-    }
-
-    .band-medium {
-      background: #fff8e1;
-      color: #f9a825;
-    }
-
-    .band-low {
-      background: #e8f5e9;
-      color: #2e7d32;
-    }
-
-    .signals-title {
-      margin: 0 0 8px 0;
-      color: var(--ri-on-surface);
-      font-size: 13px;
-      font-weight: 600;
-    }
-
-    .signals-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    .signals-grid span {
-      font-size: 12px;
-      color: var(--ri-on-surface-variant);
     }
   `],
 })

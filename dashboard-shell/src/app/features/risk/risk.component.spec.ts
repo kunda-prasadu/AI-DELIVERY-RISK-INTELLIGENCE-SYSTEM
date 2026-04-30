@@ -7,7 +7,31 @@ describe('RiskComponent', () => {
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
 
   beforeEach(async () => {
-    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['refreshRiskScores']);
+    riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
+      'refreshRiskScores',
+      'getBandColor',
+      'getBandBackgroundColor',
+      'getRiskScores',
+    ]);
+    riskServiceSpy.getBandColor.and.callFake((band: string) => {
+      const colors: Record<string, string> = {
+        LOW: '#2e7d32',
+        MEDIUM: '#f9a825',
+        HIGH: '#f57c00',
+        CRITICAL: '#ba1a1a',
+      };
+      return colors[band] || '#565e74';
+    });
+    riskServiceSpy.getBandBackgroundColor.and.callFake((band: string) => {
+      const colors: Record<string, string> = {
+        LOW: '#e8f5e9',
+        MEDIUM: '#fff8e1',
+        HIGH: '#ffe8cc',
+        CRITICAL: '#ffebee',
+      };
+      return colors[band] || '#f0ecf9';
+    });
+    riskServiceSpy.getRiskScores.and.returnValue(of([]));
 
     await TestBed.configureTestingModule({
       imports: [RiskComponent],
@@ -46,6 +70,8 @@ describe('RiskComponent', () => {
     expect(component.riskScores[0].projectName).toBe('Critical Program');
     expect(component.getBandCount('CRITICAL')).toBe(1);
     expect(compiled.textContent).toContain('Critical Program');
+    expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
+    expect(compiled.textContent).toContain('Detailed Risk Scorecards');
   });
 
   it('should show retry state when risk service fails', () => {
