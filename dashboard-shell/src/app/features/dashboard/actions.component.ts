@@ -278,6 +278,7 @@ interface TelemetryNavigatorPreferences {
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <button mat-stroked-button type="button" (click)="resetTelemetryNavigatorPreferences()">Reset Nav Prefs</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorPinnedOnlyMode()" [disabled]="!telemetryNavigatorPinnedTimestamps.length && !telemetryNavigatorPinnedOnlyMode">Pinned Only {{ telemetryNavigatorPinnedOnlyMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="pinVisibleTelemetryNavigatorPoints()" [disabled]="!canPinVisibleTelemetryNavigatorPoints()">Pin Visible</button>
                 <button mat-stroked-button type="button" (click)="clearTelemetryNavigatorPins()" [disabled]="!telemetryNavigatorPinnedTimestamps.length">Unpin All</button>
@@ -1269,6 +1270,17 @@ export class ActionsComponent implements OnInit {
 
   toggleTelemetryNavigatorSortOrder(): void {
     this.telemetryNavigatorSortOrder = this.telemetryNavigatorSortOrder === 'newest' ? 'oldest' : 'newest';
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+    this.persistTelemetryNavigatorPreferences();
+  }
+
+  resetTelemetryNavigatorPreferences(): void {
+    this.telemetryNavigatorContinuousMode = false;
+    this.telemetryNavigatorSortOrder = 'newest';
+    this.telemetryNavigatorPageSize = 8;
+    this.telemetryNavigatorMinRate = 0;
+    this.telemetryNavigatorPinnedOnlyMode = false;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
     this.persistTelemetryNavigatorPreferences();

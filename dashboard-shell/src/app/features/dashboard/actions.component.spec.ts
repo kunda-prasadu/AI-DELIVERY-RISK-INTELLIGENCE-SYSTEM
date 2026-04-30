@@ -1271,6 +1271,62 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should reset telemetry navigator preferences to defaults and persist them', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 50 }, (_, index) => ({
+      timestamp: now - ((49 - index) * 30 * 60 * 1000),
+      openCount: Math.max(50 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 10, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-pins-v1', JSON.stringify([seed[8].timestamp]));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.toggleTelemetryNavigatorContinuousMode();
+      secondComponent.toggleTelemetryNavigatorSortOrder();
+      secondComponent.setTelemetryNavigatorPageSize(15);
+      secondComponent.setTelemetryNavigatorMinRate(55);
+      secondComponent.toggleTelemetryNavigatorPinnedOnlyMode();
+
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeTrue();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('oldest');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(55);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeTrue();
+
+      secondComponent.resetTelemetryNavigatorPreferences();
+
+      expect(secondComponent.telemetryNavigatorContinuousMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorSortOrder).toBe('newest');
+      expect(secondComponent.telemetryNavigatorPageSize).toBe(8);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+
+      const persisted = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        continuousMode: boolean;
+        sortOrder: string;
+        pageSize: number;
+        minRate: number;
+        pinnedOnlyMode: boolean;
+      };
+
+      expect(persisted.continuousMode).toBeFalse();
+      expect(persisted.sortOrder).toBe('newest');
+      expect(persisted.pageSize).toBe(8);
+      expect(persisted.minRate).toBe(0);
+      expect(persisted.pinnedOnlyMode).toBeFalse();
+      done();
+    }, 100);
+  });
+
   it('should export the current telemetry window as CSV', (done) => {
     const now = Date.now();
     const seed = [
