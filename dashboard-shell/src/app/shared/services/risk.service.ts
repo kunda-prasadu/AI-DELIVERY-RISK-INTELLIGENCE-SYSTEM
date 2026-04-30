@@ -157,6 +157,12 @@ export class RiskService {
       );
   }
 
+  getProjectAnomaly(projectId: string): Observable<ProjectAnomaly | null> {
+    return this.http
+      .get<ProjectAnomaly>(`${this.METRICS_BASE}/projects/${projectId}/anomalies`)
+      .pipe(catchError(() => of(null)));
+  }
+
   /**
    * Get color for risk band.
    * Maps Material Design 3 semantic colors.

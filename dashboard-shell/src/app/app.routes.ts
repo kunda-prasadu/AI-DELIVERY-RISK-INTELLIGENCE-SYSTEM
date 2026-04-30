@@ -22,6 +22,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/risk/risk.component').then(m => m.RiskComponent),
       },
       {
+        path: 'risk/anomalies/:projectId',
+        loadComponent: () =>
+          import('./features/risk/risk-anomaly-detail.component').then(m => m.RiskAnomalyDetailComponent),
+      },
+      {
         path: 'engineering',
         loadComponent: () =>
           import('./features/dashboard/engineering.component').then(m => m.EngineeringComponent),

@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -113,6 +114,9 @@ import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.
               <span class="anomaly-chip" [class]="'anomaly-' + anomaly.severity.toLowerCase()">
                 {{ anomaly.severity }} · {{ anomaly.anomalyScore }}
               </span>
+              <button mat-stroked-button type="button" (click)="openAnomalyDetail(anomaly.projectId)">
+                View Details
+              </button>
             </div>
           </div>
         </mat-card-content>
@@ -218,6 +222,8 @@ import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.
     .anomaly-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
       gap: 12px;
       padding: 12px;
       border: 1px solid var(--ri-outline-variant);
@@ -280,7 +286,7 @@ export class RiskComponent implements OnInit {
   loading = false;
   errorMessage = '';
 
-  constructor(private riskService: RiskService) {}
+  constructor(private riskService: RiskService, private router: Router) {}
 
   ngOnInit(): void {
     this.loadRiskScores();
@@ -313,5 +319,9 @@ export class RiskComponent implements OnInit {
 
   getBandCount(band: RiskScore['band']): number {
     return this.riskScores.filter(score => score.band === band).length;
+  }
+
+  openAnomalyDetail(projectId: string): void {
+    this.router.navigate(['/risk/anomalies', projectId]);
   }
 }

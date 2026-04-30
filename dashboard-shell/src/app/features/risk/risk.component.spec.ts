@@ -1,10 +1,12 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { of, throwError } from 'rxjs';
 import { RiskComponent } from './risk.component';
 import { RiskService } from '../../shared/services/risk.service';
 
 describe('RiskComponent', () => {
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
+  let routerSpy: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', [
@@ -14,6 +16,7 @@ describe('RiskComponent', () => {
       'getBandBackgroundColor',
       'getRiskScores',
     ]);
+    routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate']);
     riskServiceSpy.getBandColor.and.callFake((band: string) => {
       const colors: Record<string, string> = {
         LOW: '#2e7d32',
@@ -37,7 +40,10 @@ describe('RiskComponent', () => {
 
     await TestBed.configureTestingModule({
       imports: [RiskComponent],
-      providers: [{ provide: RiskService, useValue: riskServiceSpy }],
+      providers: [
+        { provide: RiskService, useValue: riskServiceSpy },
+        { provide: Router, useValue: routerSpy },
+      ],
     }).compileComponents();
   });
 
@@ -105,5 +111,17 @@ describe('RiskComponent', () => {
 
     expect(component.errorMessage).toContain('Unable to load risk scores');
     expect(compiled.textContent).toContain('Try Again');
+  });
+
+  it('should navigate to project anomaly detail view', () => {
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+
+    const fixture = TestBed.createComponent(RiskComponent);
+    fixture.detectChanges();
+
+    fixture.componentInstance.openAnomalyDetail('p-critical');
+
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk/anomalies', 'p-critical']);
   });
 });
