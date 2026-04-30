@@ -1,26 +1,436 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
+import { ProjectItem, ProjectsService } from '../../shared/services/projects.service';
+import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+
+interface EngineeringHotspot {
+  projectId: string;
+  projectName: string;
+  team: string;
+  riskScore: number;
+  riskBand: RiskScore['band'];
+  anomalySeverity: ProjectAnomaly['severity'] | 'NONE';
+  anomalyTrend: ProjectAnomaly['trend'] | 'none';
+  criticalEvents: number;
+  dominantSignal: 'quality' | 'cicd' | 'codeVelocity' | 'jiraVelocity';
+}
 
 @Component({
   selector: 'app-engineering',
   standalone: true,
-  imports: [MatCardModule],
+  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule],
   template: `
     <div class="page-container">
       <h1 class="text-display-lg">Engineering Insights</h1>
-      <p class="subtitle">Real-time risk signals and predictive delivery analytics across 42+ active repositories.</p>
-      <mat-card class="content-placeholder">
+      <p class="subtitle">Portfolio-level engineering health signals, hotspot repositories, and remediation priorities.</p>
+
+      <div class="toolbar-row">
+        <p class="summary" *ngIf="!loading && !errorMessage">
+          Tracking {{ hotspots.length }} delivery tracks from live risk and anomaly data.
+        </p>
+        <button mat-stroked-button type="button" (click)="loadInsights()" [disabled]="loading">Refresh</button>
+      </div>
+
+      <mat-card class="state-card" *ngIf="loading">
         <mat-card-content>
-          <p>Engineering health overview, tech risk signals, and hotspot repository analysis coming soon...</p>
+          <div class="state-content">
+            <mat-spinner diameter="32"></mat-spinner>
+            <p>Loading engineering insights...</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="state-card error" *ngIf="!loading && errorMessage">
+        <mat-card-content>
+          <div class="state-content">
+            <p>{{ errorMessage }}</p>
+            <button mat-flat-button type="button" (click)="loadInsights()">Try Again</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <div class="stats-grid" *ngIf="!loading && !errorMessage && hotspots.length">
+        <mat-card class="stat-card pressure">
+          <mat-card-content>
+            <p class="stat-value">{{ deliveryPressure }}</p>
+            <p class="stat-label">Delivery Pressure</p>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat-card critical">
+          <mat-card-content>
+            <p class="stat-value">{{ highRiskCount }}</p>
+            <p class="stat-label">High/Critical Repos</p>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat-card trend">
+          <mat-card-content>
+            <p class="stat-value">{{ regressionCount }}</p>
+            <p class="stat-label">Regression Signals</p>
+          </mat-card-content>
+        </mat-card>
+        <mat-card class="stat-card events">
+          <mat-card-content>
+            <p class="stat-value">{{ criticalEventCount }}</p>
+            <p class="stat-label">Critical Events</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && hotspots.length">
+        <mat-card-header>
+          <mat-card-title>Top Hotspot Repositories</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="hotspot-list">
+            <div class="hotspot-row" *ngFor="let hotspot of hotspots.slice(0, 6)">
+              <div class="hotspot-main">
+                <span class="project-name">{{ hotspot.projectName }}</span>
+                <p class="project-meta">{{ hotspot.team }} · {{ hotspot.projectId }}</p>
+                <p class="project-meta">Dominant signal: {{ hotspot.dominantSignal }}</p>
+              </div>
+              <div class="hotspot-chips">
+                <span class="chip score">{{ hotspot.riskScore }}</span>
+                <span class="chip" [class]="'band-' + hotspot.riskBand.toLowerCase()">{{ hotspot.riskBand }}</span>
+                <span class="chip" [class]="'severity-' + hotspot.anomalySeverity.toLowerCase()">{{ hotspot.anomalySeverity }}</span>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <div class="watchlist-grid" *ngIf="!loading && !errorMessage && hotspots.length">
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Reliability Watchlist</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p *ngIf="!reliabilityWatchlist.length">No reliability hotspots detected.</p>
+            <ul class="watchlist" *ngIf="reliabilityWatchlist.length">
+              <li *ngFor="let item of reliabilityWatchlist">
+                <span>{{ item.projectName }}</span>
+                <span class="watch-meta">CI/CD stress + anomaly trend {{ item.anomalyTrend }}</span>
+              </li>
+            </ul>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Quality Drift Radar</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p *ngIf="!qualityDrift.length">No quality drift hotspots detected.</p>
+            <ul class="watchlist" *ngIf="qualityDrift.length">
+              <li *ngFor="let item of qualityDrift">
+                <span>{{ item.projectName }}</span>
+                <span class="watch-meta">Quality pressure + score {{ item.riskScore }}</span>
+              </li>
+            </ul>
+          </mat-card-content>
+        </mat-card>
+      </div>
+
+      <mat-card class="state-card" *ngIf="!loading && !errorMessage && !hotspots.length">
+        <mat-card-content>
+          <div class="state-content">
+            <p>No engineering insights are available yet.</p>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
   `,
   styles: [`
-    .page-container { max-width: 1400px; }
-    h1 { margin: 0 0 8px 0; }
-    .subtitle { color: var(--ri-on-surface-variant); margin: 0 0 24px 0; font-size: 14px; }
-    .content-placeholder { background: white; border-radius: 8px; }
+    .page-container {
+      max-width: 1400px;
+    }
+
+    h1 {
+      margin: 0 0 8px 0;
+    }
+
+    .subtitle {
+      color: var(--ri-on-surface-variant);
+      margin: 0 0 24px 0;
+      font-size: 14px;
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .summary {
+      margin: 0;
+      color: var(--ri-on-surface-variant);
+      font-size: 14px;
+    }
+
+    .state-card,
+    .section-card {
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .state-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .state-card.error p {
+      color: #ba1a1a;
+      margin: 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .stat-card {
+      background: white;
+      border-radius: 8px;
+    }
+
+    .stat-value {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .stat-label {
+      margin: 6px 0 0 0;
+      color: var(--ri-on-surface-variant);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
+
+    .stat-card.pressure .stat-value { color: #1f4e79; }
+    .stat-card.critical .stat-value { color: #ba1a1a; }
+    .stat-card.trend .stat-value { color: #f57c00; }
+    .stat-card.events .stat-value { color: #6a1b9a; }
+
+    .hotspot-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .hotspot-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--ri-outline-variant);
+      border-radius: 8px;
+      background: var(--ri-surface-container);
+      flex-wrap: wrap;
+    }
+
+    .hotspot-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .project-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ri-on-surface);
+    }
+
+    .project-meta {
+      margin: 0;
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
+
+    .hotspot-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .chip {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+      background: #eceff1;
+      color: #37474f;
+    }
+
+    .chip.score {
+      background: #e8f0fe;
+      color: #1f4e79;
+    }
+
+    .band-low { background: #e8f5e9; color: #2e7d32; }
+    .band-medium { background: #fff8e1; color: #f9a825; }
+    .band-high { background: #ffe8cc; color: #f57c00; }
+    .band-critical { background: #ffebee; color: #ba1a1a; }
+
+    .severity-low { background: #e8f5e9; color: #2e7d32; }
+    .severity-medium { background: #fff8e1; color: #f9a825; }
+    .severity-high { background: #ffe8cc; color: #f57c00; }
+    .severity-critical { background: #ffebee; color: #ba1a1a; }
+    .severity-none { background: #eceff1; color: #455a64; }
+
+    .watchlist-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+    }
+
+    .watchlist {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .watchlist li {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      border-left: 3px solid var(--ri-primary);
+      padding-left: 10px;
+    }
+
+    .watch-meta {
+      font-size: 12px;
+      color: var(--ri-on-surface-variant);
+    }
   `],
 })
-export class EngineeringComponent {}
+export class EngineeringComponent implements OnInit {
+  loading = false;
+  errorMessage = '';
+
+  hotspots: EngineeringHotspot[] = [];
+  reliabilityWatchlist: EngineeringHotspot[] = [];
+  qualityDrift: EngineeringHotspot[] = [];
+
+  deliveryPressure = 0;
+  highRiskCount = 0;
+  regressionCount = 0;
+  criticalEventCount = 0;
+
+  constructor(
+    private projectsService: ProjectsService,
+    private riskService: RiskService,
+  ) {}
+
+  ngOnInit(): void {
+    this.loadInsights();
+  }
+
+  loadInsights(): void {
+    this.loading = true;
+    this.errorMessage = '';
+
+    forkJoin({
+      projects: this.projectsService.getProjects({ status: 'active' }).pipe(
+        catchError(() => of({ projects: [], total: 0 }))
+      ),
+      riskScores: this.riskService.refreshRiskScores().pipe(
+        catchError(() => of([] as RiskScore[]))
+      ),
+      anomalies: this.riskService.getPortfolioAnomalies().pipe(
+        catchError(() => of([] as ProjectAnomaly[]))
+      ),
+    })
+      .pipe(finalize(() => {
+        this.loading = false;
+      }))
+      .subscribe(({ projects, riskScores, anomalies }) => {
+        this.buildInsights(projects.projects || [], riskScores, anomalies);
+      });
+  }
+
+  private buildInsights(projects: ProjectItem[], riskScores: RiskScore[], anomalies: ProjectAnomaly[]): void {
+    const projectMap = new Map(projects.map((project) => [project.id, project]));
+    const anomalyMap = new Map(anomalies.map((anomaly) => [anomaly.projectId, anomaly]));
+
+    this.hotspots = riskScores
+      .map((riskScore) => {
+        const project = projectMap.get(riskScore.projectId);
+        if (!project) {
+          return null;
+        }
+
+        const anomaly = anomalyMap.get(riskScore.projectId);
+        return {
+          projectId: riskScore.projectId,
+          projectName: project.name,
+          team: project.team,
+          riskScore: riskScore.score,
+          riskBand: riskScore.band,
+          anomalySeverity: anomaly?.severity || 'NONE',
+          anomalyTrend: anomaly?.trend || 'none',
+          criticalEvents: anomaly?.metrics?.severityCounts?.critical || 0,
+          dominantSignal: this.getDominantSignal(riskScore),
+        } as EngineeringHotspot;
+      })
+      .filter((item): item is EngineeringHotspot => !!item)
+      .sort((a, b) => this.hotspotScore(b) - this.hotspotScore(a));
+
+    this.reliabilityWatchlist = this.hotspots
+      .filter((hotspot) => hotspot.dominantSignal === 'cicd' || hotspot.anomalyTrend === 'regression')
+      .slice(0, 5);
+
+    this.qualityDrift = this.hotspots
+      .filter((hotspot) => hotspot.dominantSignal === 'quality' || hotspot.riskBand === 'CRITICAL')
+      .slice(0, 5);
+
+    this.highRiskCount = this.hotspots.filter((item) => item.riskBand === 'HIGH' || item.riskBand === 'CRITICAL').length;
+    this.regressionCount = this.hotspots.filter((item) => item.anomalyTrend === 'regression').length;
+    this.criticalEventCount = this.hotspots.reduce((sum, item) => sum + item.criticalEvents, 0);
+    this.deliveryPressure = this.hotspots.length
+      ? Math.round(this.hotspots.reduce((sum, item) => sum + item.riskScore, 0) / this.hotspots.length)
+      : 0;
+
+  }
+
+  private hotspotScore(hotspot: EngineeringHotspot): number {
+    const bandWeight: Record<RiskScore['band'], number> = {
+      LOW: 1,
+      MEDIUM: 2,
+      HIGH: 3,
+      CRITICAL: 4,
+    };
+
+    const severityWeight: Record<EngineeringHotspot['anomalySeverity'], number> = {
+      NONE: 0,
+      LOW: 1,
+      MEDIUM: 2,
+      HIGH: 3,
+      CRITICAL: 4,
+    };
+
+    return (hotspot.riskScore * 2) + (bandWeight[hotspot.riskBand] * 10) + (severityWeight[hotspot.anomalySeverity] * 8) + hotspot.criticalEvents;
+  }
+
+  private getDominantSignal(riskScore: RiskScore): EngineeringHotspot['dominantSignal'] {
+    const entries = Object.entries(riskScore.signals) as Array<[EngineeringHotspot['dominantSignal'], number]>;
+    entries.sort((a, b) => a[1] - b[1]);
+    return entries[0][0];
+  }
+}
