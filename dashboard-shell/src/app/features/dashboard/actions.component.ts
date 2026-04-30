@@ -54,8 +54,16 @@ interface RecommendedAction {
             <span class="stat-label" style="color: #d32f2f;">Critical</span>
           </div>
           <div class="stat">
+            <span class="stat-value">{{ inProgressCount }}</span>
+            <span class="stat-label">In Progress</span>
+          </div>
+          <div class="stat">
             <span class="stat-value">{{ completedCount }}</span>
             <span class="stat-label">Completed</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value">{{ adoptionRate }}%</span>
+            <span class="stat-label">Adoption Rate</span>
           </div>
         </div>
       </div>
@@ -399,6 +407,8 @@ interface RecommendedAction {
   `],
 })
 export class ActionsComponent implements OnInit {
+  private readonly statusStorageKey = 'ri-action-status-v1';
+
   loading = true;
   errorMessage = '';
   allActions: RecommendedAction[] = [];
@@ -406,7 +416,9 @@ export class ActionsComponent implements OnInit {
 
   totalActions = 0;
   criticalCount = 0;
+  inProgressCount = 0;
   completedCount = 0;
+  adoptionRate = 0;
 
   constructor(
     private riskService: RiskService,
@@ -457,6 +469,8 @@ export class ActionsComponent implements OnInit {
 
   private buildActionList(projectsData: any, anomalies: ProjectAnomaly[]): void {
     this.allActions = [];
+    const persistedStatuses = this.readStoredStatuses();
+    this.actionStatuses = new Map<string, 'open' | 'in_progress' | 'completed'>();
 
     const projects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || []);
     const projectMap = new Map((projects || []).map((p: ProjectItem) => [p.id, p]));
@@ -482,7 +496,7 @@ export class ActionsComponent implements OnInit {
         };
 
         this.allActions.push(action);
-        this.actionStatuses.set(action.id, 'open');
+        this.actionStatuses.set(action.id, persistedStatuses.get(action.id) || 'open');
       }
       actionIndex++;
     }
@@ -491,6 +505,8 @@ export class ActionsComponent implements OnInit {
       const severityOrder = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3 };
       return severityOrder[a.severity] - severityOrder[b.severity];
     });
+
+    this.persistStatuses();
   }
 
   private categorizeAction(description: string): string {
@@ -502,7 +518,7 @@ export class ActionsComponent implements OnInit {
     return 'General';
   }
 
-  private categorizeSource(description: string): any {
+  private categorizeSource(description: string): RecommendedAction['source'] {
     if (description.includes('Escalate')) return 'severity_escalation';
     if (description.includes('Freeze') || description.includes('monitoring')) return 'trend_management';
     if (description.includes('root-cause')) return 'event_review';
@@ -515,25 +531,70 @@ export class ActionsComponent implements OnInit {
 
   markInProgress(action: RecommendedAction): void {
     this.actionStatuses.set(action.id, 'in_progress');
+    this.persistStatuses();
     this.updateStats();
   }
 
   markCompleted(action: RecommendedAction): void {
     this.actionStatuses.set(action.id, 'completed');
+    this.persistStatuses();
     this.updateStats();
   }
 
   markOpen(action: RecommendedAction): void {
     this.actionStatuses.set(action.id, 'open');
+    this.persistStatuses();
     this.updateStats();
   }
 
   private updateStats(): void {
+    const total = this.allActions.length;
     this.totalActions = this.filteredActions('open').length;
+    this.inProgressCount = this.filteredActions('in_progress').length;
     this.criticalCount = this.allActions.filter(
       a => a.severity === 'CRITICAL' && this.actionStatuses.get(a.id) === 'open'
     ).length;
     this.completedCount = this.filteredActions('completed').length;
+    this.adoptionRate = total ? Math.round(((this.inProgressCount + this.completedCount) / total) * 100) : 0;
+  }
+
+  private readStoredStatuses(): Map<string, 'open' | 'in_progress' | 'completed'> {
+    if (typeof localStorage === 'undefined') {
+      return new Map<string, 'open' | 'in_progress' | 'completed'>();
+    }
+
+    try {
+      const raw = localStorage.getItem(this.statusStorageKey);
+      if (!raw) {
+        return new Map<string, 'open' | 'in_progress' | 'completed'>();
+      }
+
+      const parsed = JSON.parse(raw) as Record<string, 'open' | 'in_progress' | 'completed'>;
+      return new Map<string, 'open' | 'in_progress' | 'completed'>(Object.entries(parsed));
+    } catch {
+      return new Map<string, 'open' | 'in_progress' | 'completed'>();
+    }
+  }
+
+  private persistStatuses(): void {
+    if (typeof localStorage === 'undefined') {
+      return;
+    }
+
+    const validActionIds = new Set(this.allActions.map((action) => action.id));
+    const compacted: Record<string, 'open' | 'in_progress' | 'completed'> = {};
+
+    this.actionStatuses.forEach((status, actionId) => {
+      if (validActionIds.has(actionId)) {
+        compacted[actionId] = status;
+      }
+    });
+
+    try {
+      localStorage.setItem(this.statusStorageKey, JSON.stringify(compacted));
+    } catch {
+      // Ignore storage failures to keep UI responsive in constrained environments.
+    }
   }
 
   formatDate(timestamp: number): string {

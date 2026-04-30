@@ -32,6 +32,8 @@ describe('ActionsComponent', () => {
   };
 
   beforeEach(async () => {
+    localStorage.removeItem('ri-action-status-v1');
+
     mockRiskService = {
       getPortfolioAnomalies: jasmine.createSpy('getPortfolioAnomalies').and.returnValue(of([mockAnomaly])),
     };
@@ -203,6 +205,60 @@ describe('ActionsComponent', () => {
     setTimeout(() => {
       expect(component.loading).toBeFalse();
       expect(component.allActions.length).toBe(0);
+      done();
+    }, 100);
+  });
+
+  it('should persist action status changes in localStorage', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      const action = component.allActions[0];
+      component.markCompleted(action);
+
+      const stored = localStorage.getItem('ri-action-status-v1');
+      expect(stored).toBeTruthy();
+      const parsed = JSON.parse(stored || '{}');
+      expect(parsed[action.id]).toBe('completed');
+      done();
+    }, 100);
+  });
+
+  it('should restore stored statuses after component reload', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      const firstAction = component.allActions[0];
+      component.markInProgress(firstAction);
+
+      const secondFixture = TestBed.createComponent(ActionsComponent);
+      const secondComponent = secondFixture.componentInstance;
+      secondFixture.detectChanges();
+
+      setTimeout(() => {
+        const reloadedAction = secondComponent.allActions.find(a => a.id === firstAction.id);
+        expect(reloadedAction).toBeTruthy();
+        expect(secondComponent.actionStatuses.get(firstAction.id)).toBe('in_progress');
+        done();
+      }, 100);
+    }, 100);
+  });
+
+  it('should compute adoption rate from in-progress and completed actions', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      const actions = component.allActions;
+      expect(actions.length).toBeGreaterThan(0);
+
+      component.markInProgress(actions[0]);
+      if (actions.length > 1) {
+        component.markCompleted(actions[1]);
+      }
+
+      const adopted = component.inProgressCount + component.completedCount;
+      const expectedRate = Math.round((adopted / actions.length) * 100);
+      expect(component.adoptionRate).toBe(expectedRate);
       done();
     }, 100);
   });
