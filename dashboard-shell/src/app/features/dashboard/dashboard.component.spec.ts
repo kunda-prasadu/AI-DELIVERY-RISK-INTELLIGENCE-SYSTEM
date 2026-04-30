@@ -229,4 +229,31 @@ describe('DashboardComponent', () => {
 
     expect(action).toContain('Track in the weekly risk review');
   });
+
+  it('should render insufficient-data trend copy on scorecards when trend snapshots are unavailable', () => {
+    projectsServiceSpy.getProjects.and.returnValue(
+      of({ projects: [{ id: 'p1' } as any], total: 1 })
+    );
+    riskServiceSpy.refreshRiskScores.and.returnValue(
+      of([
+        {
+          projectId: 'p1',
+          projectName: 'Project One',
+          score: 82,
+          band: 'CRITICAL',
+          signals: { codeVelocity: 80, quality: 82, cicd: 85, jiraVelocity: 81 },
+          lastUpdated: new Date().toISOString(),
+        },
+      ])
+    );
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([]));
+    riskServiceSpy.getProjectRiskTrend.and.returnValue(of({ trend: 'insufficient_data' } as any));
+    alertServiceSpy.getPortfolioAlerts.and.returnValue(of({ totalActive: 0, alerts: [] }));
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('Trend unavailable: insufficient snapshots');
+  });
 });

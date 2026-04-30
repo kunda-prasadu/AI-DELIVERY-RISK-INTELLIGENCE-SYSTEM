@@ -55,14 +55,16 @@ describe('RiskScoreCardComponent', () => {
     expect(el.querySelector('.trend-indicator')).toBeNull();
   });
 
-  it('should NOT render trend indicator for insufficient_data', () => {
+  it('should render insufficient-data trend message', () => {
     const fixture = TestBed.createComponent(RiskScoreCardComponent);
     fixture.componentInstance.riskScore = baseScore;
     fixture.componentInstance.trendDirection = 'insufficient_data';
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('.trend-indicator')).toBeNull();
+    const badge = el.querySelector('.trend-insufficient_data') as HTMLElement;
+    expect(badge).toBeTruthy();
+    expect(badge.textContent).toContain('Trend unavailable: insufficient snapshots');
   });
 
   it('should render worsening trend badge with ↑ arrow', () => {

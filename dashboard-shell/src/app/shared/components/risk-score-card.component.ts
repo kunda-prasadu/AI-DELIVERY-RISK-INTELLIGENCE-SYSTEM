@@ -63,9 +63,14 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
         </div>
 
         <!-- Trend Direction -->
-        <div class="trend-row" *ngIf="trendDirection && trendDirection !== 'insufficient_data'">
+        <div class="trend-row" *ngIf="trendDirection">
           <span class="trend-indicator" [class]="'trend-' + trendDirection">
-            {{ getTrendArrow() }} {{ getTrendLabel() }}
+            <ng-container *ngIf="trendDirection !== 'insufficient_data'">
+              {{ getTrendArrow() }} {{ getTrendLabel() }}
+            </ng-container>
+            <ng-container *ngIf="trendDirection === 'insufficient_data'">
+              Trend unavailable: insufficient snapshots
+            </ng-container>
           </span>
         </div>
       </mat-card-content>
@@ -183,6 +188,7 @@ export type TrendDirection = 'worsening' | 'improving' | 'stable' | 'insufficien
     .trend-worsening { background: #ffebee; color: #ba1a1a; }
     .trend-improving { background: #e8f5e9; color: #2e7d32; }
     .trend-stable    { background: #fff8e1; color: #f9a825; }
+    .trend-insufficient_data { background: #f0ecf9; color: #565e74; }
   `],
 })
 export class RiskScoreCardComponent {

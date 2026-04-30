@@ -521,7 +521,7 @@ export class DashboardComponent implements OnInit {
     forkJoin(trendRequests).subscribe((trends) => {
       const nextTrends: Record<string, TrendDirection> = {};
       trends.forEach((trend, index) => {
-        nextTrends[topScorecardIds[index]] = (trend as ProjectRiskTrend | null)?.trend ?? null;
+        nextTrends[topScorecardIds[index]] = (trend as ProjectRiskTrend | null)?.trend ?? 'insufficient_data';
       });
       this.projectTrendDirections = nextTrends;
     });
