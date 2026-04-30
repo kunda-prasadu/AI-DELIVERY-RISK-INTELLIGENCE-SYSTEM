@@ -51,6 +51,8 @@ type TelemetryZoomLevel = 1 | 2 | 4;
 
 type TelemetryWindow = '1h' | '24h' | '7d';
 
+type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
+
 @Component({
   selector: 'app-actions',
   standalone: true,
@@ -247,6 +249,7 @@ type TelemetryWindow = '1h' | '24h' | '7d';
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
               <div style="display:flex;gap:8px;">
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorContinuousMode()">Continuous {{ telemetryNavigatorContinuousMode ? 'On' : 'Off' }}</button>
+                <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
               </div>
@@ -748,6 +751,7 @@ export class ActionsComponent implements OnInit {
   telemetryPanOffsetSteps = 0;
   telemetryNavigatorOffset = 0;
   telemetryNavigatorContinuousMode = false;
+  telemetryNavigatorSortOrder: TelemetryNavigatorSortOrder = 'newest';
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
@@ -1038,6 +1042,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryPanOffsetSteps = 0;
       this.telemetryNavigatorOffset = 0;
       this.telemetryNavigatorContinuousMode = false;
+      this.telemetryNavigatorSortOrder = 'newest';
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
     }
@@ -1057,6 +1062,12 @@ export class ActionsComponent implements OnInit {
     if (this.telemetryNavigatorContinuousMode) {
       this.telemetryNavigatorOffset = 0;
     }
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  toggleTelemetryNavigatorSortOrder(): void {
+    this.telemetryNavigatorSortOrder = this.telemetryNavigatorSortOrder === 'newest' ? 'oldest' : 'newest';
+    this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
   }
 
@@ -1127,7 +1138,10 @@ export class ActionsComponent implements OnInit {
       return;
     }
 
-    const step = direction === 'older' ? this.telemetryNavigatorPageSize : -this.telemetryNavigatorPageSize;
+    const stepDirection = this.telemetryNavigatorSortOrder === 'newest'
+      ? (direction === 'older' ? 1 : -1)
+      : (direction === 'older' ? -1 : 1);
+    const step = stepDirection * this.telemetryNavigatorPageSize;
     this.telemetryNavigatorOffset = Math.max(
       0,
       Math.min(this.getMaxTelemetryNavigatorOffset(), this.telemetryNavigatorOffset + step)
@@ -1139,7 +1153,9 @@ export class ActionsComponent implements OnInit {
       return false;
     }
 
-    return this.telemetryNavigatorOffset < this.getMaxTelemetryNavigatorOffset();
+    return this.telemetryNavigatorSortOrder === 'newest'
+      ? this.telemetryNavigatorOffset < this.getMaxTelemetryNavigatorOffset()
+      : this.telemetryNavigatorOffset > 0;
   }
 
   canShiftTelemetryNavigatorNewer(): boolean {
@@ -1147,14 +1163,15 @@ export class ActionsComponent implements OnInit {
       return false;
     }
 
-    return this.telemetryNavigatorOffset > 0;
+    return this.telemetryNavigatorSortOrder === 'newest'
+      ? this.telemetryNavigatorOffset > 0
+      : this.telemetryNavigatorOffset < this.getMaxTelemetryNavigatorOffset();
   }
 
   private getAllTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
     const visibleTimestamps = new Set(this.getTelemetryWindowPoints().map((point) => point.timestamp));
-    return [...this.adoptionTelemetry]
-      .reverse()
-      .filter((point) => !visibleTimestamps.has(point.timestamp));
+    const points = this.adoptionTelemetry.filter((point) => !visibleTimestamps.has(point.timestamp));
+    return this.telemetryNavigatorSortOrder === 'newest' ? [...points].reverse() : points;
   }
 
   private getMaxTelemetryNavigatorOffset(): number {
