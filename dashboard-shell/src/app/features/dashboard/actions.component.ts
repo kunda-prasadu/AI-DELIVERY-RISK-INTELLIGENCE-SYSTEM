@@ -688,7 +688,9 @@ type TelemetryWindow = '1h' | '24h' | '7d';
 export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
   private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
-  private readonly maxTelemetryPoints = 60;
+  private readonly maxTelemetryPoints = 180;
+  private readonly denseRecentTelemetryPoints = 60;
+  private readonly historicalTelemetryStride = 3;
   readonly chartWidth = 420;
   readonly chartHeight = 120;
 
@@ -915,9 +917,9 @@ export class ActionsComponent implements OnInit {
         return [];
       }
 
-      return parsed
-        .filter((point) => typeof point.timestamp === 'number' && typeof point.adoptionRate === 'number')
-        .slice(-this.maxTelemetryPoints);
+      return this.compactTelemetry(
+        parsed.filter((point) => typeof point.timestamp === 'number' && typeof point.adoptionRate === 'number')
+      );
     } catch {
       return [];
     }
@@ -929,7 +931,7 @@ export class ActionsComponent implements OnInit {
     }
 
     try {
-      localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.adoptionTelemetry.slice(-this.maxTelemetryPoints)));
+      localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.compactTelemetry(this.adoptionTelemetry)));
     } catch {
       // Ignore storage failures and continue rendering without telemetry persistence.
     }
@@ -959,8 +961,24 @@ export class ActionsComponent implements OnInit {
       return;
     }
 
-    this.adoptionTelemetry = [...this.adoptionTelemetry.slice(-(this.maxTelemetryPoints - 1)), currentPoint];
+    this.adoptionTelemetry = this.compactTelemetry([...this.adoptionTelemetry, currentPoint]);
     this.persistTelemetry();
+  }
+
+  private compactTelemetry(points: AdoptionTelemetryPoint[]): AdoptionTelemetryPoint[] {
+    if (points.length <= this.maxTelemetryPoints) {
+      return [...points];
+    }
+
+    const denseRecent = points.slice(-this.denseRecentTelemetryPoints);
+    const olderPoints = points.slice(0, -this.denseRecentTelemetryPoints);
+    const compactedOlderPoints = olderPoints.filter((_, index) => (
+      index === 0
+      || index === olderPoints.length - 1
+      || index % this.historicalTelemetryStride === 0
+    ));
+
+    return [...compactedOlderPoints, ...denseRecent].slice(-this.maxTelemetryPoints);
   }
 
   private updateAdoptionDelta24h(): void {

@@ -587,4 +587,29 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should retain older telemetry anchors while keeping recent history dense', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 90 }, (_, index) => ({
+      timestamp: now - ((89 - index) * 60 * 1000),
+      openCount: Math.max(90 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 1, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.adoptionTelemetry.length).toBeGreaterThan(60);
+      expect(secondComponent.adoptionTelemetry[0].timestamp).toBe(seed[0].timestamp);
+      expect(secondComponent.adoptionTelemetry[secondComponent.adoptionTelemetry.length - 1].timestamp).toBeGreaterThanOrEqual(seed[seed.length - 1].timestamp);
+      expect(secondComponent.adoptionTelemetry.slice(-61, -1).map((point) => point.timestamp)).toEqual(seed.slice(-60).map((point) => point.timestamp));
+      done();
+    }, 100);
+  });
 });
