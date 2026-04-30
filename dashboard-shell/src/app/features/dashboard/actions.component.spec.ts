@@ -3,6 +3,7 @@ import { ActionsComponent } from './actions.component';
 import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service';
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
 import { InsightsService } from '../../shared/services/insights.service';
+import { RecommendationsService } from '../../shared/services/recommendations.service';
 import { of, throwError } from 'rxjs';
 
 describe('ActionsComponent', () => {
@@ -11,6 +12,7 @@ describe('ActionsComponent', () => {
   let mockRiskService: any;
   let mockProjectsService: any;
   let mockInsightsService: any;
+  let mockRecommendationsService: any;
 
   const mockProject: ProjectItem = {
     id: 'proj-1',
@@ -38,6 +40,7 @@ describe('ActionsComponent', () => {
     localStorage.removeItem('ri-action-telemetry-v1');
     localStorage.removeItem('ri-action-telemetry-pins-v1');
     localStorage.removeItem('ri-action-telemetry-navigator-prefs-v1');
+    localStorage.removeItem('ri-recommendation-owner-assignments-v1');
 
     mockRiskService = {
       getPortfolioAnomalies: jasmine.createSpy('getPortfolioAnomalies').and.returnValue(of([mockAnomaly])),
@@ -76,12 +79,48 @@ describe('ActionsComponent', () => {
       ),
     };
 
+    mockRecommendationsService = {
+      getProjectRecommendations: jasmine.createSpy('getProjectRecommendations').and.returnValue(
+        of({
+          recommendations: [
+            {
+              id: 'REC-SUMMARY-1',
+              projectId: 'proj-1',
+              priority: 'P2',
+              domain: 'overall',
+              ownerRole: 'Program Manager',
+              title: 'Overall recommendation',
+              description: 'Coordinate mitigation plan',
+              rationale: 'Overall risk remains elevated.',
+              sourceInsightIds: ['SUMMARY'],
+              confidence: 72,
+              status: 'OPEN',
+            },
+          ],
+          pagination: { page: 1, limit: 5, total: 1, pages: 1 },
+        })
+      ),
+      getProjectRecommendationsSummary: jasmine.createSpy('getProjectRecommendationsSummary').and.returnValue(
+        of({
+          projectId: 'proj-1',
+          riskScore: 45,
+          band: 'MEDIUM',
+          totalRecommendations: 1,
+          priorityCounts: { P1: 0, P2: 1, P3: 0 },
+          ownerRoleCounts: { 'Program Manager': 1 },
+          domainCounts: { overall: 1 },
+          generatedAt: new Date().toISOString(),
+        })
+      ),
+    };
+
     await TestBed.configureTestingModule({
       imports: [ActionsComponent],
       providers: [
         { provide: RiskService, useValue: mockRiskService },
         { provide: ProjectsService, useValue: mockProjectsService },
         { provide: InsightsService, useValue: mockInsightsService },
+        { provide: RecommendationsService, useValue: mockRecommendationsService },
       ],
     }).compileComponents();
 
@@ -101,6 +140,34 @@ describe('ActionsComponent', () => {
       expect(component.allActions.length).toBeGreaterThan(0);
       expect(component.allActions[0].projectName).toBe('Project Alpha');
       expect(mockInsightsService.getProjectInsights).toHaveBeenCalled();
+      expect(mockRecommendationsService.getProjectRecommendations).toHaveBeenCalled();
+      done();
+    }, 100);
+  });
+
+  it('should initialize recommendation panel with first project', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      expect(component.recommendationProjectId).toBe('proj-1');
+      expect(component.recommendationItems.length).toBeGreaterThan(0);
+      expect(component.recommendationSummary).toBeTruthy();
+      done();
+    }, 100);
+  });
+
+  it('should persist recommendation owner assignment', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      const recommendation = component.recommendationItems[0];
+      component.assignRecommendationOwner(recommendation.id, 'QA Lead');
+
+      const stored = localStorage.getItem('ri-recommendation-owner-assignments-v1');
+      expect(stored).toBeTruthy();
+      const parsed = JSON.parse(stored || '{}');
+      expect(parsed[recommendation.id]).toBe('QA Lead');
+      expect(component.getAssignedOwner(recommendation)).toBe('QA Lead');
       done();
     }, 100);
   });

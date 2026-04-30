@@ -9,6 +9,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service';
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
 import { InsightItem, InsightSummary, InsightsService } from '../../shared/services/insights.service';
+import { RecommendationItem, RecommendationSummary, RecommendationsService } from '../../shared/services/recommendations.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
@@ -71,6 +72,8 @@ interface InsightDomainOption {
   value: string;
   label: string;
 }
+
+type RecommendationPriorityFilter = 'ALL' | 'P1' | 'P2' | 'P3';
 
 @Component({
   selector: 'app-actions',
@@ -221,6 +224,102 @@ interface InsightDomainOption {
               <button mat-stroked-button type="button" (click)="goToInsightPage(insightPage - 1)" [disabled]="insightPage <= 1">Previous</button>
               <span>Page {{ insightPage }} / {{ insightTotalPages }}</span>
               <button mat-stroked-button type="button" (click)="goToInsightPage(insightPage + 1)" [disabled]="insightPage >= insightTotalPages">Next</button>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && recommendationProjectId">
+        <mat-card-header>
+          <mat-card-title>Recommendation Assignment Panel</mat-card-title>
+          <mat-card-subtitle>Owner assignment and prioritization for generated recommendations</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="insights-controls-row">
+            <label>
+              Project
+              <select [value]="recommendationProjectId" (change)="onRecommendationProjectChange($any($event.target).value)">
+                <option *ngFor="let project of insightProjects" [value]="project.id">{{ project.name }}</option>
+              </select>
+            </label>
+            <label>
+              Priority
+              <select [value]="recommendationPriorityFilter" (change)="onRecommendationPriorityChange($any($event.target).value)">
+                <option value="ALL">All</option>
+                <option value="P1">P1</option>
+                <option value="P2">P2</option>
+                <option value="P3">P3</option>
+              </select>
+            </label>
+            <label>
+              Domain
+              <select [value]="recommendationDomainFilter" (change)="onRecommendationDomainChange($any($event.target).value)">
+                <option value="ALL">All</option>
+                <option *ngFor="let domain of recommendationDomainOptions" [value]="domain">{{ domain }}</option>
+              </select>
+            </label>
+            <button mat-stroked-button type="button" (click)="loadProjectRecommendations()">Refresh</button>
+          </div>
+
+          <div class="state-content" *ngIf="recommendationsLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <p>Loading recommendations...</p>
+          </div>
+
+          <div class="state-content" *ngIf="!recommendationsLoading && recommendationsErrorMessage">
+            <p>{{ recommendationsErrorMessage }}</p>
+          </div>
+
+          <div *ngIf="!recommendationsLoading && !recommendationsErrorMessage">
+            <div class="insights-summary-row" *ngIf="recommendationSummary">
+              <div class="stat"><span class="stat-value">{{ recommendationSummary.totalRecommendations }}</span><span class="stat-label">Total</span></div>
+              <div class="stat"><span class="stat-value">{{ recommendationSummary.priorityCounts.P1 || 0 }}</span><span class="stat-label" style="color:#b3261e;">P1</span></div>
+              <div class="stat"><span class="stat-value">{{ recommendationSummary.priorityCounts.P2 || 0 }}</span><span class="stat-label">P2</span></div>
+              <div class="stat"><span class="stat-value">{{ recommendationSummary.priorityCounts.P3 || 0 }}</span><span class="stat-label">P3</span></div>
+            </div>
+
+            <div class="insight-list" *ngIf="recommendationItems.length; else noRecommendationsState">
+              <mat-card class="action-card" *ngFor="let recommendation of recommendationItems">
+                <mat-card-header>
+                  <div class="action-header">
+                    <div class="project-info">
+                      <strong>{{ recommendation.title }}</strong>
+                      <span class="anomaly-id">{{ recommendation.domain }} · {{ recommendation.priority }}</span>
+                    </div>
+                    <mat-chip-set>
+                      <mat-chip [ngClass]="'severity-' + mapPriorityToSeverityClass(recommendation.priority)">
+                        {{ recommendation.priority }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </div>
+                </mat-card-header>
+                <mat-card-content>
+                  <p class="action-description">{{ recommendation.description }}</p>
+                  <div class="action-meta" style="margin-bottom:10px;">
+                    <span class="timestamp"><mat-icon>verified</mat-icon>Confidence {{ recommendation.confidence }}%</span>
+                  </div>
+                  <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ri-on-surface-variant);">
+                    Assigned Owner
+                    <select [value]="getAssignedOwner(recommendation)" (change)="assignRecommendationOwner(recommendation.id, $any($event.target).value)">
+                      <option *ngFor="let owner of recommendationOwnerRoleOptions" [value]="owner">{{ owner }}</option>
+                    </select>
+                  </label>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <ng-template #noRecommendationsState>
+              <mat-card class="empty-state">
+                <mat-card-content>
+                  <p>No recommendations match current filters.</p>
+                </mat-card-content>
+              </mat-card>
+            </ng-template>
+
+            <div class="insights-pagination-row">
+              <button mat-stroked-button type="button" (click)="goToRecommendationPage(recommendationPage - 1)" [disabled]="recommendationPage <= 1">Previous</button>
+              <span>Page {{ recommendationPage }} / {{ recommendationTotalPages }}</span>
+              <button mat-stroked-button type="button" (click)="goToRecommendationPage(recommendationPage + 1)" [disabled]="recommendationPage >= recommendationTotalPages">Next</button>
             </div>
           </div>
         </mat-card-content>
@@ -901,6 +1000,7 @@ interface InsightDomainOption {
 export class ActionsComponent implements OnInit {
   private readonly statusStorageKey = 'ri-action-status-v1';
   private readonly telemetryStorageKey = 'ri-action-telemetry-v1';
+  private readonly recommendationAssignmentStorageKey = 'ri-recommendation-owner-assignments-v1';
   private readonly telemetryPinnedStorageKey = 'ri-action-telemetry-pins-v1';
   private readonly telemetryNavigatorPreferencesStorageKey = 'ri-action-telemetry-navigator-prefs-v1';
   private readonly maxTelemetryPoints = 180;
@@ -925,6 +1025,19 @@ export class ActionsComponent implements OnInit {
   insightPage = 1;
   readonly insightPageSize = 5;
   insightTotalPages = 1;
+  recommendationProjectId = '';
+  recommendationItems: RecommendationItem[] = [];
+  recommendationSummary: RecommendationSummary | null = null;
+  recommendationsLoading = false;
+  recommendationsErrorMessage = '';
+  recommendationPriorityFilter: RecommendationPriorityFilter = 'ALL';
+  recommendationDomainFilter = 'ALL';
+  recommendationDomainOptions: string[] = [];
+  recommendationPage = 1;
+  readonly recommendationPageSize = 5;
+  recommendationTotalPages = 1;
+  recommendationOwnerAssignments = new Map<string, string>();
+  recommendationOwnerRoleOptions = ['Engineering Lead', 'QA Lead', 'DevOps Lead', 'Delivery Manager', 'Program Manager'];
 
   totalActions = 0;
   criticalCount = 0;
@@ -959,7 +1072,8 @@ export class ActionsComponent implements OnInit {
   constructor(
     private riskService: RiskService,
     private projectsService: ProjectsService,
-    private insightsService: InsightsService
+    private insightsService: InsightsService,
+    private recommendationsService: RecommendationsService
   ) {}
 
   ngOnInit(): void {
@@ -970,6 +1084,7 @@ export class ActionsComponent implements OnInit {
     this.enforceTelemetryNavigatorPinQuota();
     this.updateAdoptionDelta24h();
     this.syncActiveTelemetryPoint();
+    this.recommendationOwnerAssignments = this.readRecommendationOwnerAssignments();
     this.loadActions();
   }
 
@@ -1003,6 +1118,7 @@ export class ActionsComponent implements OnInit {
 
           this.buildActionList(projectsData, anomalies);
           this.setupInsightsPanel(projectsData);
+          this.setupRecommendationPanel(projectsData);
           this.updateStats();
         },
         error: (err) => {
@@ -1026,6 +1142,23 @@ export class ActionsComponent implements OnInit {
     }
 
     this.loadProjectInsights();
+  }
+
+  private setupRecommendationPanel(projectsData: any): void {
+    const projects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || []);
+
+    if (!projects.length) {
+      this.recommendationProjectId = '';
+      this.recommendationItems = [];
+      this.recommendationSummary = null;
+      return;
+    }
+
+    if (!this.recommendationProjectId || !projects.some((project: ProjectItem) => project.id === this.recommendationProjectId)) {
+      this.recommendationProjectId = projects[0].id;
+    }
+
+    this.loadProjectRecommendations();
   }
 
   onInsightProjectChange(projectId: string): void {
@@ -1090,6 +1223,117 @@ export class ActionsComponent implements OnInit {
           this.insightItems = [];
         },
       });
+  }
+
+  onRecommendationProjectChange(projectId: string): void {
+    this.recommendationProjectId = projectId;
+    this.recommendationPage = 1;
+    this.loadProjectRecommendations();
+  }
+
+  onRecommendationPriorityChange(priority: RecommendationPriorityFilter): void {
+    this.recommendationPriorityFilter = priority;
+    this.recommendationPage = 1;
+    this.loadProjectRecommendations();
+  }
+
+  onRecommendationDomainChange(domain: string): void {
+    this.recommendationDomainFilter = domain;
+    this.recommendationPage = 1;
+    this.loadProjectRecommendations();
+  }
+
+  goToRecommendationPage(page: number): void {
+    if (page < 1 || page > this.recommendationTotalPages || page === this.recommendationPage) {
+      return;
+    }
+    this.recommendationPage = page;
+    this.loadProjectRecommendations();
+  }
+
+  loadProjectRecommendations(): void {
+    if (!this.recommendationProjectId) {
+      return;
+    }
+
+    this.recommendationsLoading = true;
+    this.recommendationsErrorMessage = '';
+
+    const priority = this.recommendationPriorityFilter === 'ALL' ? undefined : this.recommendationPriorityFilter;
+    const domain = this.recommendationDomainFilter === 'ALL' ? undefined : this.recommendationDomainFilter;
+
+    forkJoin({
+      list: this.recommendationsService.getProjectRecommendations(this.recommendationProjectId, {
+        priority,
+        domain,
+        page: this.recommendationPage,
+        limit: this.recommendationPageSize,
+      }).pipe(catchError(() => of({ recommendations: [], pagination: { page: 1, limit: this.recommendationPageSize, total: 0, pages: 1 } }))),
+      summary: this.recommendationsService.getProjectRecommendationsSummary(this.recommendationProjectId).pipe(catchError(() => of(null))),
+    })
+      .pipe(finalize(() => {
+        this.recommendationsLoading = false;
+      }))
+      .subscribe({
+        next: ({ list, summary }) => {
+          this.recommendationItems = list.recommendations || [];
+          this.recommendationSummary = summary;
+          this.recommendationTotalPages = Math.max(1, list.pagination?.pages || 1);
+          this.recommendationPage = list.pagination?.page || 1;
+          this.recomputeRecommendationFilterOptions();
+        },
+        error: () => {
+          this.recommendationsErrorMessage = 'Failed to load recommendations.';
+          this.recommendationItems = [];
+        },
+      });
+  }
+
+  private recomputeRecommendationFilterOptions(): void {
+    const domainCounts = this.recommendationSummary?.domainCounts || {};
+    this.recommendationDomainOptions = Object.keys(domainCounts).sort();
+    if (this.recommendationDomainFilter !== 'ALL' && !this.recommendationDomainOptions.includes(this.recommendationDomainFilter)) {
+      this.recommendationDomainFilter = 'ALL';
+    }
+
+    const ownerRoleCounts = this.recommendationSummary?.ownerRoleCounts || {};
+    const discoveredRoles = Object.keys(ownerRoleCounts);
+    if (discoveredRoles.length) {
+      const merged = [...this.recommendationOwnerRoleOptions, ...discoveredRoles];
+      this.recommendationOwnerRoleOptions = Array.from(new Set(merged));
+    }
+  }
+
+  assignRecommendationOwner(recommendationId: string, owner: string): void {
+    this.recommendationOwnerAssignments.set(recommendationId, owner);
+    this.persistRecommendationOwnerAssignments();
+  }
+
+  getAssignedOwner(recommendation: RecommendationItem): string {
+    return this.recommendationOwnerAssignments.get(recommendation.id) || recommendation.ownerRole;
+  }
+
+  mapPriorityToSeverityClass(priority: string): 'critical' | 'high' | 'medium' | 'low' {
+    if (priority === 'P1') return 'critical';
+    if (priority === 'P2') return 'high';
+    if (priority === 'P3') return 'medium';
+    return 'low';
+  }
+
+  private readRecommendationOwnerAssignments(): Map<string, string> {
+    try {
+      const raw = localStorage.getItem(this.recommendationAssignmentStorageKey);
+      if (!raw) return new Map<string, string>();
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      return new Map<string, string>(Object.entries(parsed || {}));
+    } catch {
+      return new Map<string, string>();
+    }
+  }
+
+  private persistRecommendationOwnerAssignments(): void {
+    const payload = Object.fromEntries(this.recommendationOwnerAssignments.entries());
+    localStorage.setItem(this.recommendationAssignmentStorageKey, JSON.stringify(payload));
   }
 
   private recomputeInsightDomainOptions(): void {
