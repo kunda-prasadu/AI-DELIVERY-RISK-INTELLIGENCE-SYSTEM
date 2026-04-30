@@ -53,12 +53,15 @@ type TelemetryWindow = '1h' | '24h' | '7d';
 
 type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
 
+type TelemetryNavigatorPreset = 'focus' | 'explore' | 'custom';
+
 interface TelemetryNavigatorPreferences {
   continuousMode: boolean;
   sortOrder: TelemetryNavigatorSortOrder;
   pageSize: number;
   minRate: number;
   pinnedOnlyMode: boolean;
+  activePreset: TelemetryNavigatorPreset;
 }
 
 @Component({
@@ -272,6 +275,7 @@ interface TelemetryNavigatorPreferences {
             <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;">
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
               <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Pins {{ telemetryNavigatorPinnedTimestamps.length }}/{{ telemetryNavigatorMaxPins }}</span>
+              <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Preset {{ getTelemetryNavigatorPresetLabel() }}</span>
               <div style="display:flex;gap:8px;">
                 <button mat-stroked-button type="button" (click)="recenterTelemetryToLiveEdge()" [disabled]="!canRecenterTelemetryToLiveEdge()">Back To Live</button>
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorContinuousMode()">Continuous {{ telemetryNavigatorContinuousMode ? 'On' : 'Off' }}</button>
@@ -823,6 +827,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
   telemetryNavigatorPinnedOnlyMode = false;
+  telemetryNavigatorActivePreset: TelemetryNavigatorPreset = 'custom';
   telemetryNavigatorPinnedTimestamps: number[] = [];
   telemetryNavigatorPinLimitMessage = '';
   telemetryShortcutHelpOpen = false;
@@ -1126,6 +1131,7 @@ export class ActionsComponent implements OnInit {
       pageSize: this.telemetryNavigatorPageSize,
       minRate: this.telemetryNavigatorMinRate,
       pinnedOnlyMode: this.telemetryNavigatorPinnedOnlyMode,
+      activePreset: this.telemetryNavigatorActivePreset,
     };
 
     try {
@@ -1157,6 +1163,9 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorMinRate = isNaN(parsedMinRate) ? 0 : Math.max(0, Math.min(100, parsedMinRate));
 
     this.telemetryNavigatorPinnedOnlyMode = !!preferences.pinnedOnlyMode && this.telemetryNavigatorPinnedTimestamps.length > 0;
+    this.telemetryNavigatorActivePreset = preferences.activePreset === 'focus' || preferences.activePreset === 'explore'
+      ? preferences.activePreset
+      : 'custom';
     this.persistTelemetryNavigatorPreferences();
   }
 
@@ -1246,6 +1255,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorSortOrder = 'newest';
       this.telemetryNavigatorMinRate = 0;
       this.telemetryNavigatorPinnedOnlyMode = false;
+      this.telemetryNavigatorActivePreset = 'custom';
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
       this.persistTelemetryNavigatorPreferences();
@@ -1267,6 +1277,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorOffset = 0;
     }
     this.clampTelemetryNavigatorOffset();
+    this.telemetryNavigatorActivePreset = 'custom';
     this.persistTelemetryNavigatorPreferences();
   }
 
@@ -1274,6 +1285,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorSortOrder = this.telemetryNavigatorSortOrder === 'newest' ? 'oldest' : 'newest';
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.telemetryNavigatorActivePreset = 'custom';
     this.persistTelemetryNavigatorPreferences();
   }
 
@@ -1283,6 +1295,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPageSize = 8;
     this.telemetryNavigatorMinRate = 0;
     this.telemetryNavigatorPinnedOnlyMode = false;
+    this.telemetryNavigatorActivePreset = 'custom';
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
     this.persistTelemetryNavigatorPreferences();
@@ -1295,12 +1308,14 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorPageSize = 5;
       this.telemetryNavigatorMinRate = 60;
       this.telemetryNavigatorPinnedOnlyMode = false;
+      this.telemetryNavigatorActivePreset = 'focus';
     } else {
       this.telemetryNavigatorContinuousMode = true;
       this.telemetryNavigatorSortOrder = 'oldest';
       this.telemetryNavigatorPageSize = 15;
       this.telemetryNavigatorMinRate = 0;
       this.telemetryNavigatorPinnedOnlyMode = false;
+      this.telemetryNavigatorActivePreset = 'explore';
     }
 
     this.telemetryNavigatorOffset = 0;
@@ -1313,6 +1328,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorMinRate = isNaN(parsed) ? 0 : Math.max(0, Math.min(100, parsed));
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.telemetryNavigatorActivePreset = 'custom';
     this.persistTelemetryNavigatorPreferences();
   }
 
@@ -1325,6 +1341,7 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPageSize = parsed;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.telemetryNavigatorActivePreset = 'custom';
     this.persistTelemetryNavigatorPreferences();
   }
 
@@ -1429,7 +1446,20 @@ export class ActionsComponent implements OnInit {
     this.telemetryNavigatorPinnedOnlyMode = !this.telemetryNavigatorPinnedOnlyMode;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
+    this.telemetryNavigatorActivePreset = 'custom';
     this.persistTelemetryNavigatorPreferences();
+  }
+
+  getTelemetryNavigatorPresetLabel(): string {
+    if (this.telemetryNavigatorActivePreset === 'focus') {
+      return 'Focus';
+    }
+
+    if (this.telemetryNavigatorActivePreset === 'explore') {
+      return 'Explore';
+    }
+
+    return 'Custom';
   }
 
   getPinnedTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {

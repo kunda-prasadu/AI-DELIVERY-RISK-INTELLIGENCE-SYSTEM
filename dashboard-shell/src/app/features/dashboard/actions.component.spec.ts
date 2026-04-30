@@ -1350,6 +1350,8 @@ describe('ActionsComponent', () => {
       expect(secondComponent.telemetryNavigatorPageSize).toBe(5);
       expect(secondComponent.telemetryNavigatorMinRate).toBe(60);
       expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('focus');
+      expect(secondComponent.getTelemetryNavigatorPresetLabel()).toBe('Focus');
       expect(secondComponent.telemetryNavigatorOffset).toBe(0);
 
       const persistedFocus = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
@@ -1365,6 +1367,7 @@ describe('ActionsComponent', () => {
       expect(persistedFocus.pageSize).toBe(5);
       expect(persistedFocus.minRate).toBe(60);
       expect(persistedFocus.pinnedOnlyMode).toBeFalse();
+      expect((persistedFocus as { activePreset?: string }).activePreset).toBe('focus');
 
       secondComponent.applyTelemetryNavigatorPreset('explore');
       expect(secondComponent.telemetryNavigatorContinuousMode).toBeTrue();
@@ -1372,6 +1375,8 @@ describe('ActionsComponent', () => {
       expect(secondComponent.telemetryNavigatorPageSize).toBe(15);
       expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
       expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('explore');
+      expect(secondComponent.getTelemetryNavigatorPresetLabel()).toBe('Explore');
       expect(secondComponent.telemetryNavigatorOffset).toBe(0);
 
       const persistedExplore = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
@@ -1387,6 +1392,47 @@ describe('ActionsComponent', () => {
       expect(persistedExplore.pageSize).toBe(15);
       expect(persistedExplore.minRate).toBe(0);
       expect(persistedExplore.pinnedOnlyMode).toBeFalse();
+      expect((persistedExplore as { activePreset?: string }).activePreset).toBe('explore');
+
+      secondComponent.setTelemetryNavigatorMinRate(22);
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('custom');
+      expect(secondComponent.getTelemetryNavigatorPresetLabel()).toBe('Custom');
+
+      const persistedCustom = JSON.parse(localStorage.getItem('ri-action-telemetry-navigator-prefs-v1') || '{}') as {
+        activePreset?: string;
+      };
+      expect(persistedCustom.activePreset).toBe('custom');
+      done();
+    }, 100);
+  });
+
+  it('should restore active preset from persisted navigator preferences', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 30 }, (_, index) => ({
+      timestamp: now - ((29 - index) * 30 * 60 * 1000),
+      openCount: Math.max(30 - index, 0),
+      inProgressCount: index % 3,
+      completedCount: index,
+      adoptionRate: Math.min(index + 30, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-navigator-prefs-v1', JSON.stringify({
+      continuousMode: false,
+      sortOrder: 'newest',
+      pageSize: 5,
+      minRate: 50,
+      pinnedOnlyMode: false,
+      activePreset: 'focus',
+    }));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.telemetryNavigatorActivePreset).toBe('focus');
+      expect(secondComponent.getTelemetryNavigatorPresetLabel()).toBe('Focus');
       done();
     }, 100);
   });
