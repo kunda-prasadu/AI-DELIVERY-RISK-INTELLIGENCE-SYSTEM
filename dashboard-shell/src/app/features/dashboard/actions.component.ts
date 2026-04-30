@@ -253,6 +253,9 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Min Rate%
+                  <input type="number" min="0" max="100" [value]="telemetryNavigatorMinRate" (change)="setTelemetryNavigatorMinRate($any($event.target).value)" style="width:52px;padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
+                </label>
               </div>
             </div>
             <div [style.display]="'flex'" [style.gap.px]="8" [style.flex-wrap]="telemetryNavigatorContinuousMode ? 'nowrap' : 'wrap'" [style.overflow-x]="telemetryNavigatorContinuousMode ? 'auto' : 'visible'" [style.padding-bottom.px]="telemetryNavigatorContinuousMode ? 4 : 0">
@@ -753,6 +756,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorOffset = 0;
   telemetryNavigatorContinuousMode = false;
   telemetryNavigatorSortOrder: TelemetryNavigatorSortOrder = 'newest';
+  telemetryNavigatorMinRate = 0;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
@@ -1044,6 +1048,7 @@ export class ActionsComponent implements OnInit {
       this.telemetryNavigatorOffset = 0;
       this.telemetryNavigatorContinuousMode = false;
       this.telemetryNavigatorSortOrder = 'newest';
+      this.telemetryNavigatorMinRate = 0;
       this.syncActiveTelemetryPoint();
       this.clampTelemetryNavigatorOffset();
     }
@@ -1068,6 +1073,13 @@ export class ActionsComponent implements OnInit {
 
   toggleTelemetryNavigatorSortOrder(): void {
     this.telemetryNavigatorSortOrder = this.telemetryNavigatorSortOrder === 'newest' ? 'oldest' : 'newest';
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  setTelemetryNavigatorMinRate(rate: number | string): void {
+    const parsed = typeof rate === 'string' ? parseFloat(rate) : rate;
+    this.telemetryNavigatorMinRate = isNaN(parsed) ? 0 : Math.max(0, Math.min(100, parsed));
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
   }
@@ -1182,7 +1194,9 @@ export class ActionsComponent implements OnInit {
 
   private getAllTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
     const visibleTimestamps = new Set(this.getTelemetryWindowPoints().map((point) => point.timestamp));
-    const points = this.adoptionTelemetry.filter((point) => !visibleTimestamps.has(point.timestamp));
+    const points = this.adoptionTelemetry.filter(
+      (point) => !visibleTimestamps.has(point.timestamp) && point.adoptionRate >= this.telemetryNavigatorMinRate
+    );
     return this.telemetryNavigatorSortOrder === 'newest' ? [...points].reverse() : points;
   }
 

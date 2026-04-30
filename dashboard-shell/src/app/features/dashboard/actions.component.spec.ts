@@ -835,4 +835,57 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should filter jump navigator points by a minimum adoption rate threshold', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 40 }, (_, index) => ({
+      timestamp: now - ((39 - index) * 30 * 60 * 1000),
+      openCount: Math.max(40 - index, 0),
+      inProgressCount: index % 3,
+      completedCount: index,
+      adoptionRate: index * 2 + 5, // 5, 7, 9, ... 83  (40 points)
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+      // Enable continuous mode so all navigator points are visible without pagination
+      if (!secondComponent.telemetryNavigatorContinuousMode) {
+        secondComponent.toggleTelemetryNavigatorContinuousMode();
+      }
+
+      // With no filter all non-window navigator points are present
+      const unfiltered = secondComponent.getTelemetryNavigatorPoints();
+      expect(unfiltered.length).toBeGreaterThan(0);
+
+      // Apply a 50% minimum rate threshold
+      secondComponent.setTelemetryNavigatorMinRate(50);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(50);
+      const filtered = secondComponent.getTelemetryNavigatorPoints();
+      expect(filtered.every((point) => point.adoptionRate >= 50)).toBeTrue();
+      expect(filtered.length).toBeLessThan(unfiltered.length);
+
+      // Offset is reset to 0 when threshold changes
+      expect(secondComponent.telemetryNavigatorOffset).toBe(0);
+
+      // Clearing the threshold (set to 0) restores all points
+      secondComponent.setTelemetryNavigatorMinRate(0);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      const restored = secondComponent.getTelemetryNavigatorPoints();
+      expect(restored.length).toBe(unfiltered.length);
+
+      // setTelemetryWindow resets threshold to 0
+      secondComponent.setTelemetryNavigatorMinRate(75);
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(75);
+      secondComponent.setTelemetryWindow('24h');
+      expect(secondComponent.telemetryNavigatorMinRate).toBe(0);
+      done();
+    }, 100);
+  });
 });
