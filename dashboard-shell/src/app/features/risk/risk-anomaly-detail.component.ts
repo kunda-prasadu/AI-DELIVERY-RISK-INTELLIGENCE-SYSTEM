@@ -73,6 +73,23 @@ import { ProjectsService } from '../../shared/services/projects.service';
             </div>
           </div>
 
+          <div class="timeline-section">
+            <h3>Severity Timeline Snapshot</h3>
+            <div class="timeline-row" *ngFor="let bucket of getSeverityTimeline()">
+              <div class="timeline-label">
+                <span>{{ bucket.label }}</span>
+                <span>{{ bucket.count }}</span>
+              </div>
+              <div class="timeline-track">
+                <div
+                  class="timeline-fill"
+                  [class]="'timeline-' + bucket.key"
+                  [style.width.%]="bucket.percent"
+                ></div>
+              </div>
+            </div>
+          </div>
+
           <div class="reasons-section">
             <h3>Primary Anomaly Reasons</h3>
             <ul>
@@ -165,6 +182,58 @@ import { ProjectsService } from '../../shared/services/projects.service';
       font-weight: 600;
     }
 
+    .timeline-section {
+      margin-top: 18px;
+    }
+
+    .timeline-section h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .timeline-row {
+      margin-bottom: 10px;
+    }
+
+    .timeline-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--ri-on-surface-variant);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .timeline-track {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: #e8eaed;
+      overflow: hidden;
+    }
+
+    .timeline-fill {
+      height: 100%;
+      border-radius: inherit;
+    }
+
+    .timeline-critical {
+      background: #ba1a1a;
+    }
+
+    .timeline-high {
+      background: #f57c00;
+    }
+
+    .timeline-medium {
+      background: #f9a825;
+    }
+
+    .timeline-low {
+      background: #2e7d32;
+    }
+
     .reasons-section {
       margin-top: 18px;
     }
@@ -237,5 +306,21 @@ export class RiskAnomalyDetailComponent implements OnInit {
 
   goBack(): void {
     this.router.navigate(['/risk']);
+  }
+
+  getSeverityTimeline(): Array<{ key: 'critical' | 'high' | 'medium' | 'low'; label: string; count: number; percent: number }> {
+    if (!this.anomaly) {
+      return [];
+    }
+
+    const total = this.anomaly.metrics.totalEvents || 1;
+    const counts = this.anomaly.metrics.severityCounts;
+
+    return [
+      { key: 'critical', label: 'Critical', count: counts.critical, percent: Math.round((counts.critical / total) * 100) },
+      { key: 'high', label: 'High', count: counts.high, percent: Math.round((counts.high / total) * 100) },
+      { key: 'medium', label: 'Medium', count: counts.medium, percent: Math.round((counts.medium / total) * 100) },
+      { key: 'low', label: 'Low', count: counts.low, percent: Math.round((counts.low / total) * 100) },
+    ];
   }
 }

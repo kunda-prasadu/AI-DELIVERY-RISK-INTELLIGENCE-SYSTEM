@@ -63,6 +63,7 @@ describe('RiskAnomalyDetailComponent', () => {
     expect(compiled.textContent).toContain('Project Anomaly Detail');
     expect(compiled.textContent).toContain('Critical Program');
     expect(compiled.textContent).toContain('p-critical');
+    expect(compiled.textContent).toContain('Severity Timeline Snapshot');
     expect(compiled.textContent).toContain('Primary Anomaly Reasons');
   });
 
