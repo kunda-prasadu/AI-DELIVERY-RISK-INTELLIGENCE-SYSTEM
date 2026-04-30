@@ -8,6 +8,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTabsModule } from '@angular/material/tabs';
 import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service';
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
+import { InsightItem, InsightSummary, InsightsService } from '../../shared/services/insights.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
@@ -62,6 +63,13 @@ interface TelemetryNavigatorPreferences {
   minRate: number;
   pinnedOnlyMode: boolean;
   activePreset: TelemetryNavigatorPreset;
+}
+
+type InsightSeverityFilter = 'ALL' | 'INFO' | 'WARNING' | 'CRITICAL';
+
+interface InsightDomainOption {
+  value: string;
+  label: string;
 }
 
 @Component({
@@ -121,6 +129,99 @@ interface TelemetryNavigatorPreferences {
           <div class="state-content">
             <p>{{ errorMessage }}</p>
             <button mat-flat-button type="button" (click)="loadActions()">Retry</button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage && insightProjectId">
+        <mat-card-header>
+          <mat-card-title>Risk Insights Panel</mat-card-title>
+          <mat-card-subtitle>Project-level insight drilldown with severity/domain filters</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="insights-controls-row">
+            <label>
+              Project
+              <select [value]="insightProjectId" (change)="onInsightProjectChange($any($event.target).value)">
+                <option *ngFor="let project of insightProjects" [value]="project.id">{{ project.name }}</option>
+              </select>
+            </label>
+
+            <label>
+              Severity
+              <select [value]="insightSeverityFilter" (change)="onInsightSeverityChange($any($event.target).value)">
+                <option value="ALL">All</option>
+                <option value="INFO">Info</option>
+                <option value="WARNING">Warning</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </label>
+
+            <label>
+              Domain
+              <select [value]="insightDomainFilter" (change)="onInsightDomainChange($any($event.target).value)">
+                <option value="ALL">All</option>
+                <option *ngFor="let domain of insightDomainOptions" [value]="domain.value">{{ domain.label }}</option>
+              </select>
+            </label>
+
+            <button mat-stroked-button type="button" (click)="loadProjectInsights()">Refresh</button>
+          </div>
+
+          <div class="state-content" *ngIf="insightsLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <p>Loading project insights...</p>
+          </div>
+
+          <div class="state-content" *ngIf="!insightsLoading && insightsErrorMessage">
+            <p>{{ insightsErrorMessage }}</p>
+          </div>
+
+          <div *ngIf="!insightsLoading && !insightsErrorMessage">
+            <div class="insights-summary-row" *ngIf="insightSummary">
+              <div class="stat"><span class="stat-value">{{ insightSummary.totalInsights }}</span><span class="stat-label">Total</span></div>
+              <div class="stat"><span class="stat-value">{{ insightSummary.severityCounts.CRITICAL || 0 }}</span><span class="stat-label" style="color:#b3261e;">Critical</span></div>
+              <div class="stat"><span class="stat-value">{{ insightSummary.severityCounts.WARNING || 0 }}</span><span class="stat-label">Warning</span></div>
+              <div class="stat"><span class="stat-value">{{ insightSummary.severityCounts.INFO || 0 }}</span><span class="stat-label">Info</span></div>
+            </div>
+
+            <div class="insight-list" *ngIf="insightItems.length; else noInsightsState">
+              <mat-card class="action-card" *ngFor="let insight of insightItems">
+                <mat-card-header>
+                  <div class="action-header">
+                    <div class="project-info">
+                      <strong>{{ insight.title }}</strong>
+                      <span class="anomaly-id">{{ insight.domain }}</span>
+                    </div>
+                    <mat-chip-set>
+                      <mat-chip [ngClass]="'severity-' + mapInsightSeverityToActionSeverity(insight.severity)">
+                        {{ insight.severity }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </div>
+                </mat-card-header>
+                <mat-card-content>
+                  <p class="action-description">{{ insight.detail }}</p>
+                  <div class="action-meta">
+                    <span class="timestamp"><mat-icon>bolt</mat-icon>{{ insight.action }}</span>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <ng-template #noInsightsState>
+              <mat-card class="empty-state">
+                <mat-card-content>
+                  <p>No insights match current filters for this project.</p>
+                </mat-card-content>
+              </mat-card>
+            </ng-template>
+
+            <div class="insights-pagination-row">
+              <button mat-stroked-button type="button" (click)="goToInsightPage(insightPage - 1)" [disabled]="insightPage <= 1">Previous</button>
+              <span>Page {{ insightPage }} / {{ insightTotalPages }}</span>
+              <button mat-stroked-button type="button" (click)="goToInsightPage(insightPage + 1)" [disabled]="insightPage >= insightTotalPages">Next</button>
+            </div>
           </div>
         </mat-card-content>
       </mat-card>
@@ -812,6 +913,18 @@ export class ActionsComponent implements OnInit {
   errorMessage = '';
   allActions: RecommendedAction[] = [];
   actionStatuses = new Map<string, 'open' | 'in_progress' | 'completed'>();
+  insightProjects: ProjectItem[] = [];
+  insightProjectId = '';
+  insightItems: InsightItem[] = [];
+  insightSummary: InsightSummary | null = null;
+  insightsLoading = false;
+  insightsErrorMessage = '';
+  insightSeverityFilter: InsightSeverityFilter = 'ALL';
+  insightDomainFilter = 'ALL';
+  insightDomainOptions: InsightDomainOption[] = [];
+  insightPage = 1;
+  readonly insightPageSize = 5;
+  insightTotalPages = 1;
 
   totalActions = 0;
   criticalCount = 0;
@@ -845,7 +958,8 @@ export class ActionsComponent implements OnInit {
 
   constructor(
     private riskService: RiskService,
-    private projectsService: ProjectsService
+    private projectsService: ProjectsService,
+    private insightsService: InsightsService
   ) {}
 
   ngOnInit(): void {
@@ -888,6 +1002,7 @@ export class ActionsComponent implements OnInit {
           const anomalies: ProjectAnomaly[] = data.anomalies;
 
           this.buildActionList(projectsData, anomalies);
+          this.setupInsightsPanel(projectsData);
           this.updateStats();
         },
         error: (err) => {
@@ -895,6 +1010,110 @@ export class ActionsComponent implements OnInit {
           console.error('Action load error:', err);
         },
       });
+  }
+
+  private setupInsightsPanel(projectsData: any): void {
+    this.insightProjects = Array.isArray(projectsData) ? projectsData : (projectsData?.projects || []);
+    if (!this.insightProjects.length) {
+      this.insightProjectId = '';
+      this.insightItems = [];
+      this.insightSummary = null;
+      return;
+    }
+
+    if (!this.insightProjectId || !this.insightProjects.some((project) => project.id === this.insightProjectId)) {
+      this.insightProjectId = this.insightProjects[0].id;
+    }
+
+    this.loadProjectInsights();
+  }
+
+  onInsightProjectChange(projectId: string): void {
+    this.insightProjectId = projectId;
+    this.insightPage = 1;
+    this.loadProjectInsights();
+  }
+
+  onInsightSeverityChange(severity: InsightSeverityFilter): void {
+    this.insightSeverityFilter = severity;
+    this.insightPage = 1;
+    this.loadProjectInsights();
+  }
+
+  onInsightDomainChange(domain: string): void {
+    this.insightDomainFilter = domain;
+    this.insightPage = 1;
+    this.loadProjectInsights();
+  }
+
+  goToInsightPage(page: number): void {
+    if (page < 1 || page > this.insightTotalPages || page === this.insightPage) {
+      return;
+    }
+    this.insightPage = page;
+    this.loadProjectInsights();
+  }
+
+  loadProjectInsights(): void {
+    if (!this.insightProjectId) {
+      return;
+    }
+
+    this.insightsLoading = true;
+    this.insightsErrorMessage = '';
+
+    const severity = this.insightSeverityFilter === 'ALL' ? undefined : this.insightSeverityFilter;
+    const domain = this.insightDomainFilter === 'ALL' ? undefined : this.insightDomainFilter;
+
+    forkJoin({
+      list: this.insightsService.getProjectInsights(this.insightProjectId, {
+        severity,
+        domain,
+        page: this.insightPage,
+        limit: this.insightPageSize,
+      }).pipe(catchError(() => of({ insights: [], pagination: { page: 1, limit: this.insightPageSize, total: 0, pages: 1 } }))),
+      summary: this.insightsService.getProjectInsightsSummary(this.insightProjectId).pipe(catchError(() => of(null))),
+    })
+      .pipe(finalize(() => {
+        this.insightsLoading = false;
+      }))
+      .subscribe({
+        next: ({ list, summary }) => {
+          this.insightItems = list.insights || [];
+          this.insightSummary = summary;
+          this.insightTotalPages = Math.max(1, list.pagination?.pages || 1);
+          this.insightPage = list.pagination?.page || 1;
+          this.recomputeInsightDomainOptions();
+        },
+        error: () => {
+          this.insightsErrorMessage = 'Failed to load project insights.';
+          this.insightItems = [];
+        },
+      });
+  }
+
+  private recomputeInsightDomainOptions(): void {
+    if (!this.insightSummary || !this.insightSummary.domainCounts) {
+      this.insightDomainOptions = [];
+      return;
+    }
+
+    this.insightDomainOptions = Object.keys(this.insightSummary.domainCounts)
+      .sort()
+      .map((domain) => ({
+        value: domain,
+        label: domain,
+      }));
+
+    if (this.insightDomainFilter !== 'ALL' && !this.insightDomainOptions.some((domain) => domain.value === this.insightDomainFilter)) {
+      this.insightDomainFilter = 'ALL';
+    }
+  }
+
+  mapInsightSeverityToActionSeverity(severity: string): 'critical' | 'high' | 'medium' | 'low' {
+    if (severity === 'CRITICAL') return 'critical';
+    if (severity === 'WARNING') return 'medium';
+    return 'low';
   }
 
   private buildActionList(projectsData: any, anomalies: ProjectAnomaly[]): void {

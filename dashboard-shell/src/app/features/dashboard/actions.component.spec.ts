@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActionsComponent } from './actions.component';
 import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service';
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
+import { InsightsService } from '../../shared/services/insights.service';
 import { of, throwError } from 'rxjs';
 
 describe('ActionsComponent', () => {
@@ -9,6 +10,7 @@ describe('ActionsComponent', () => {
   let fixture: ComponentFixture<ActionsComponent>;
   let mockRiskService: any;
   let mockProjectsService: any;
+  let mockInsightsService: any;
 
   const mockProject: ProjectItem = {
     id: 'proj-1',
@@ -45,11 +47,41 @@ describe('ActionsComponent', () => {
       getProjects: jasmine.createSpy('getProjects').and.returnValue(of({ projects: [mockProject], total: 1 })),
     };
 
+    mockInsightsService = {
+      getProjectInsights: jasmine.createSpy('getProjectInsights').and.returnValue(
+        of({
+          insights: [
+            {
+              id: 'SUMMARY',
+              domain: 'overall',
+              severity: 'WARNING',
+              title: 'Overall risk: MEDIUM',
+              detail: 'Aggregate risk score places this project in medium band.',
+              action: 'Review flagged signals and assign owners.',
+            },
+          ],
+          pagination: { page: 1, limit: 5, total: 1, pages: 1 },
+        })
+      ),
+      getProjectInsightsSummary: jasmine.createSpy('getProjectInsightsSummary').and.returnValue(
+        of({
+          projectId: 'proj-1',
+          riskScore: 45,
+          band: 'MEDIUM',
+          totalInsights: 1,
+          severityCounts: { INFO: 0, WARNING: 1, CRITICAL: 0 },
+          domainCounts: { overall: 1 },
+          generatedAt: new Date().toISOString(),
+        })
+      ),
+    };
+
     await TestBed.configureTestingModule({
       imports: [ActionsComponent],
       providers: [
         { provide: RiskService, useValue: mockRiskService },
         { provide: ProjectsService, useValue: mockProjectsService },
+        { provide: InsightsService, useValue: mockInsightsService },
       ],
     }).compileComponents();
 
@@ -68,6 +100,28 @@ describe('ActionsComponent', () => {
       expect(component.loading).toBeFalse();
       expect(component.allActions.length).toBeGreaterThan(0);
       expect(component.allActions[0].projectName).toBe('Project Alpha');
+      expect(mockInsightsService.getProjectInsights).toHaveBeenCalled();
+      done();
+    }, 100);
+  });
+
+  it('should initialize insights panel with first project', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      expect(component.insightProjectId).toBe('proj-1');
+      expect(component.insightItems.length).toBeGreaterThan(0);
+      expect(component.insightSummary).toBeTruthy();
+      done();
+    }, 100);
+  });
+
+  it('should reload insights when severity filter changes', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      component.onInsightSeverityChange('CRITICAL');
+      expect(mockInsightsService.getProjectInsights).toHaveBeenCalled();
       done();
     }, 100);
   });
