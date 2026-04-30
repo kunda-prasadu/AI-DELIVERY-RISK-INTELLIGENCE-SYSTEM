@@ -47,6 +47,8 @@ interface TelemetrySeriesDefinition {
   color: string;
 }
 
+type TelemetryZoomLevel = 1 | 2 | 4;
+
 type TelemetryWindow = '1h' | '24h' | '7d';
 
 @Component({
@@ -131,6 +133,27 @@ type TelemetryWindow = '1h' | '24h' | '7d';
             </button>
           </div>
 
+          <div class="telemetry-control-row" *ngIf="adoptionTelemetry.length >= 2" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+            <div class="telemetry-pan-row" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button mat-stroked-button type="button" (click)="panTelemetryWindow('older')" [disabled]="!canPanTelemetryOlder()">
+                Older
+              </button>
+              <button mat-stroked-button type="button" (click)="panTelemetryWindow('newer')" [disabled]="!canPanTelemetryNewer()">
+                Newer
+              </button>
+            </div>
+            <div class="telemetry-zoom-row" style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button
+                mat-stroked-button
+                type="button"
+                *ngFor="let zoom of telemetryZoomLevels"
+                [class.window-active]="telemetryZoomLevel === zoom"
+                (click)="setTelemetryZoom(zoom)">
+                {{ zoom }}x
+              </button>
+            </div>
+          </div>
+
           <div class="telemetry-chart-shell" *ngIf="getTelemetryWindowPoints().length >= 2; else insufficientTrendData">
             <svg [attr.width]="chartWidth" [attr.height]="chartHeight" class="telemetry-chart" role="img" [attr.aria-label]="getTelemetryChartAriaLabel()">
               <line
@@ -170,9 +193,9 @@ type TelemetryWindow = '1h' | '24h' | '7d';
                 (blur)="clearHoveredTelemetryPoint()">
               </circle>
             </svg>
-            <div class="telemetry-legend-row">
-              <span class="telemetry-legend-item" *ngFor="let series of telemetrySeries">
-                <span class="telemetry-legend-swatch" [style.background]="series.color"></span>
+            <div class="telemetry-legend-row" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;color:var(--ri-on-surface-variant);font-size:12px;">
+              <span class="telemetry-legend-item" *ngFor="let series of telemetrySeries" style="display:inline-flex;align-items:center;gap:6px;">
+                <span class="telemetry-legend-swatch" [style.background]="series.color" style="width:10px;height:10px;border-radius:999px;display:inline-block;"></span>
                 {{ series.label }}
               </span>
             </div>
@@ -185,6 +208,7 @@ type TelemetryWindow = '1h' | '24h' | '7d';
               <span>{{ getTelemetryWindowEndLabel() }}</span>
             </div>
             <div class="telemetry-chart-meta">
+              <span>{{ getTelemetryViewSummary() }}</span>
               <span>Start {{ getTelemetryWindowStartRate() }}%</span>
               <span>Peak {{ getTelemetryWindowPeakRate() }}%</span>
               <span>Current {{ adoptionRate }}%</span>
@@ -414,6 +438,10 @@ type TelemetryWindow = '1h' | '24h' | '7d';
     .telemetry-window-row {
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .telemetry-window-row {
       margin-bottom: 12px;
     }
 
@@ -460,23 +488,6 @@ type TelemetryWindow = '1h' | '24h' | '7d';
       font-size: 11px;
       color: var(--ri-on-surface-variant);
       margin-top: 6px;
-    }
-
-    .telemetry-legend-row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .telemetry-legend-item {
-      gap: 6px;
-    }
-
-    .telemetry-legend-swatch {
-      width: 10px;
-      height: 10px;
-      display: inline-block;
     }
 
     .telemetry-chart-meta {
@@ -695,11 +706,14 @@ export class ActionsComponent implements OnInit {
   adoptionTelemetry: AdoptionTelemetryPoint[] = [];
   selectedTelemetryWindow: TelemetryWindow = '24h';
   hoveredTelemetryPoint: AdoptionTelemetryPoint | null = null;
+  telemetryZoomLevel: TelemetryZoomLevel = 1;
+  telemetryPanOffsetSteps = 0;
   readonly telemetrySeries: TelemetrySeriesDefinition[] = [
     { key: 'adoption', label: 'Adoption', color: '#3525cd' },
     { key: 'completed', label: 'Completed', color: '#0f9d58' },
     { key: 'inProgress', label: 'In Progress', color: '#ff8f00' },
   ];
+  readonly telemetryZoomLevels: TelemetryZoomLevel[] = [1, 2, 4];
 
   constructor(
     private riskService: RiskService,
@@ -964,8 +978,34 @@ export class ActionsComponent implements OnInit {
   setTelemetryWindow(window: string): void {
     if (window === '1h' || window === '24h' || window === '7d') {
       this.selectedTelemetryWindow = window;
+      this.telemetryPanOffsetSteps = 0;
       this.syncActiveTelemetryPoint();
     }
+  }
+
+  setTelemetryZoom(zoom: number): void {
+    if (zoom === 1 || zoom === 2 || zoom === 4) {
+      this.telemetryZoomLevel = zoom;
+      this.clampTelemetryPanOffset();
+      this.syncActiveTelemetryPoint();
+    }
+  }
+
+  panTelemetryWindow(direction: 'older' | 'newer'): void {
+    const nextOffset = direction === 'older'
+      ? this.telemetryPanOffsetSteps + 1
+      : this.telemetryPanOffsetSteps - 1;
+
+    this.telemetryPanOffsetSteps = Math.max(0, Math.min(this.getMaxTelemetryPanOffsetSteps(), nextOffset));
+    this.syncActiveTelemetryPoint();
+  }
+
+  canPanTelemetryOlder(): boolean {
+    return this.telemetryPanOffsetSteps < this.getMaxTelemetryPanOffsetSteps();
+  }
+
+  canPanTelemetryNewer(): boolean {
+    return this.telemetryPanOffsetSteps > 0;
   }
 
   getTelemetryWindowPoints(): AdoptionTelemetryPoint[] {
@@ -973,10 +1013,21 @@ export class ActionsComponent implements OnInit {
       return [];
     }
 
-    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
-    const threshold = latestTimestamp - this.getWindowDurationMs(this.selectedTelemetryWindow);
-    const filtered = this.adoptionTelemetry.filter((point) => point.timestamp >= threshold);
-    return filtered.length ? filtered : [this.adoptionTelemetry[this.adoptionTelemetry.length - 1]];
+    const range = this.getTelemetryViewRange();
+    const filtered = this.adoptionTelemetry.filter(
+      (point) => point.timestamp >= range.start && point.timestamp <= range.end
+    );
+
+    if (filtered.length) {
+      return filtered;
+    }
+
+    const closestPoint = [...this.adoptionTelemetry]
+      .reverse()
+      .find((point) => point.timestamp <= range.end)
+      || this.adoptionTelemetry[0];
+
+    return closestPoint ? [closestPoint] : [];
   }
 
   getTelemetryChartPoints(): TelemetryChartPoint[] {
@@ -1036,6 +1087,10 @@ export class ActionsComponent implements OnInit {
     return points.length ? this.formatTime(points[points.length - 1].timestamp) : '--';
   }
 
+  getTelemetryViewSummary(): string {
+    return `${this.telemetryZoomLevel}x zoom${this.telemetryPanOffsetSteps ? ` · shifted ${this.telemetryPanOffsetSteps} step${this.telemetryPanOffsetSteps > 1 ? 's' : ''} older` : ' · live edge'}`;
+  }
+
   setHoveredTelemetryPoint(point: AdoptionTelemetryPoint): void {
     this.hoveredTelemetryPoint = point;
   }
@@ -1068,7 +1123,7 @@ export class ActionsComponent implements OnInit {
       return 'Adoption trend chart';
     }
 
-    return `Adoption trend chart from ${this.getTelemetryWindowStartLabel()} to ${this.getTelemetryWindowEndLabel()}, current highlighted point ${activePoint.adoptionRate} percent adoption with ${this.getTelemetryRateForPoint(activePoint, 'completed')} percent completed and ${this.getTelemetryRateForPoint(activePoint, 'inProgress')} percent in progress at ${this.formatDateTime(activePoint.timestamp)}`;
+    return `Adoption trend chart from ${this.getTelemetryWindowStartLabel()} to ${this.getTelemetryWindowEndLabel()} at ${this.telemetryZoomLevel}x zoom, current highlighted point ${activePoint.adoptionRate} percent adoption with ${this.getTelemetryRateForPoint(activePoint, 'completed')} percent completed and ${this.getTelemetryRateForPoint(activePoint, 'inProgress')} percent in progress at ${this.formatDateTime(activePoint.timestamp)}`;
   }
 
   private getWindowDurationMs(window: TelemetryWindow): number {
@@ -1081,6 +1136,54 @@ export class ActionsComponent implements OnInit {
     }
 
     return 7 * 24 * 60 * 60 * 1000;
+  }
+
+  private getTelemetryViewRange(): { start: number; end: number } {
+    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
+    const earliestTimestamp = this.adoptionTelemetry[0].timestamp;
+    const duration = this.getTelemetryViewDurationMs();
+    const panShift = this.telemetryPanOffsetSteps * this.getTelemetryPanStepMs();
+
+    let end = latestTimestamp - panShift;
+    let start = end - duration;
+
+    if (start < earliestTimestamp) {
+      start = earliestTimestamp;
+      end = earliestTimestamp + duration;
+    }
+
+    if (end > latestTimestamp) {
+      end = latestTimestamp;
+      start = latestTimestamp - duration;
+    }
+
+    return {
+      start,
+      end,
+    };
+  }
+
+  private getTelemetryViewDurationMs(): number {
+    return Math.max(Math.floor(this.getWindowDurationMs(this.selectedTelemetryWindow) / this.telemetryZoomLevel), 5 * 60 * 1000);
+  }
+
+  private getTelemetryPanStepMs(): number {
+    return Math.max(Math.floor(this.getTelemetryViewDurationMs() / 2), 60 * 1000);
+  }
+
+  private getMaxTelemetryPanOffsetSteps(): number {
+    if (this.adoptionTelemetry.length < 2) {
+      return 0;
+    }
+
+    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
+    const earliestTimestamp = this.adoptionTelemetry[0].timestamp;
+    const availableHistory = Math.max(latestTimestamp - earliestTimestamp - this.getTelemetryViewDurationMs(), 0);
+    return Math.ceil(availableHistory / this.getTelemetryPanStepMs());
+  }
+
+  private clampTelemetryPanOffset(): void {
+    this.telemetryPanOffsetSteps = Math.min(this.telemetryPanOffsetSteps, this.getMaxTelemetryPanOffsetSteps());
   }
 
   private buildTelemetryChartPoints(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey): TelemetryChartPoint[] {

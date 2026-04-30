@@ -517,4 +517,72 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should zoom the telemetry view to a narrower time slice', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (55 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (40 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 20 },
+      { timestamp: now - (25 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+      { timestamp: now - (20 * 60 * 1000), openCount: 2, inProgressCount: 1, completedCount: 2, adoptionRate: 60 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      const fullWindowCount = secondComponent.getTelemetryWindowPoints().length;
+
+      secondComponent.setTelemetryZoom(4);
+
+      expect(secondComponent.telemetryZoomLevel).toBe(4);
+      expect(secondComponent.getTelemetryWindowPoints().length).toBeLessThan(fullWindowCount);
+      expect(secondComponent.getTelemetryViewSummary()).toContain('4x zoom');
+      done();
+    }, 100);
+  });
+
+  it('should pan the telemetry view to older data and back to the live edge', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (50 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (40 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 20 },
+      { timestamp: now - (30 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+      { timestamp: now - (20 * 60 * 1000), openCount: 2, inProgressCount: 1, completedCount: 2, adoptionRate: 60 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 2, inProgressCount: 2, completedCount: 2, adoptionRate: 80 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const liveEdgeLatest = secondComponent.getTelemetryWindowPoints()[secondComponent.getTelemetryWindowPoints().length - 1];
+
+      expect(secondComponent.canPanTelemetryOlder()).toBeTrue();
+
+      secondComponent.panTelemetryWindow('older');
+      const olderLatest = secondComponent.getTelemetryWindowPoints()[secondComponent.getTelemetryWindowPoints().length - 1];
+
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(1);
+      expect(olderLatest.timestamp).toBeLessThan(liveEdgeLatest.timestamp);
+      expect(secondComponent.canPanTelemetryNewer()).toBeTrue();
+
+      secondComponent.panTelemetryWindow('newer');
+      const resetLatest = secondComponent.getTelemetryWindowPoints()[secondComponent.getTelemetryWindowPoints().length - 1];
+
+      expect(secondComponent.telemetryPanOffsetSteps).toBe(0);
+      expect(resetLatest.timestamp).toBe(liveEdgeLatest.timestamp);
+      done();
+    }, 100);
+  });
 });
