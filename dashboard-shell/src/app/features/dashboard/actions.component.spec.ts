@@ -1153,6 +1153,51 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should support pinned-only filter mode and expose pinned metadata labels', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 70 }, (_, index) => ({
+      timestamp: now - ((69 - index) * 30 * 60 * 1000),
+      openCount: Math.max(70 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 10, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const pinA = secondComponent.adoptionTelemetry[15];
+      const pinB = secondComponent.adoptionTelemetry[30];
+      secondComponent.toggleTelemetryNavigatorPin(pinA);
+      secondComponent.toggleTelemetryNavigatorPin(pinB);
+
+      const defaultNavigator = secondComponent.getTelemetryNavigatorPoints();
+      expect(defaultNavigator.length).toBeGreaterThan(0);
+
+      secondComponent.toggleTelemetryNavigatorPinnedOnlyMode();
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeTrue();
+      const pinnedOnly = secondComponent.getTelemetryNavigatorPoints();
+      expect(pinnedOnly.length).toBe(2);
+      expect(pinnedOnly.every((point) => secondComponent.isTelemetryNavigatorPinned(point))).toBeTrue();
+
+      const ageLabel = secondComponent.getPinnedSnapshotAgeLabel(pinA.timestamp);
+      const contextLabel = secondComponent.getPinnedSnapshotContextLabel(pinA);
+      expect(ageLabel).toContain('Age ');
+      expect(['within window', 'outside window']).toContain(contextLabel);
+
+      secondComponent.clearTelemetryNavigatorPins();
+      expect(secondComponent.telemetryNavigatorPinnedOnlyMode).toBeFalse();
+      done();
+    }, 100);
+  });
+
   it('should export the current telemetry window as CSV', (done) => {
     const now = Date.now();
     const seed = [

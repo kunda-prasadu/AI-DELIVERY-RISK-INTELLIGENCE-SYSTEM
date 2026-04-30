@@ -270,6 +270,7 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorSortOrder()">Order {{ telemetryNavigatorSortOrder === 'newest' ? 'Newest' : 'Oldest' }} First</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('older')" [disabled]="!canShiftTelemetryNavigatorOlder()">Older Jumps</button>
                 <button mat-stroked-button type="button" (click)="shiftTelemetryNavigator('newer')" [disabled]="!canShiftTelemetryNavigatorNewer()">Newer Jumps</button>
+                <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorPinnedOnlyMode()" [disabled]="!telemetryNavigatorPinnedTimestamps.length && !telemetryNavigatorPinnedOnlyMode">Pinned Only {{ telemetryNavigatorPinnedOnlyMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="pinVisibleTelemetryNavigatorPoints()" [disabled]="!canPinVisibleTelemetryNavigatorPoints()">Pin Visible</button>
                 <button mat-stroked-button type="button" (click)="clearTelemetryNavigatorPins()" [disabled]="!telemetryNavigatorPinnedTimestamps.length">Unpin All</button>
                 <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Page Size
@@ -292,6 +293,8 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
                   <button mat-stroked-button type="button" (click)="jumpToPinnedTelemetrySnapshot(pinnedPoint.timestamp)">
                     {{ formatTime(pinnedPoint.timestamp) }} · {{ pinnedPoint.adoptionRate }}%
                   </button>
+                  <span style="font-size:11px;color:var(--ri-on-surface-variant);">{{ getPinnedSnapshotAgeLabel(pinnedPoint.timestamp) }}</span>
+                  <span style="font-size:11px;color:var(--ri-on-surface-variant);">{{ getPinnedSnapshotContextLabel(pinnedPoint) }}</span>
                   <button mat-stroked-button type="button" (click)="unpinTelemetryNavigatorTimestamp(pinnedPoint.timestamp)">Unpin</button>
                 </div>
               </div>
@@ -807,6 +810,7 @@ export class ActionsComponent implements OnInit {
   telemetryNavigatorSortOrder: TelemetryNavigatorSortOrder = 'newest';
   telemetryNavigatorPageSize = 8;
   telemetryNavigatorMinRate = 0;
+  telemetryNavigatorPinnedOnlyMode = false;
   telemetryNavigatorPinnedTimestamps: number[] = [];
   telemetryNavigatorPinLimitMessage = '';
   telemetryShortcutHelpOpen = false;
@@ -1287,8 +1291,19 @@ export class ActionsComponent implements OnInit {
     }
 
     this.telemetryNavigatorPinnedTimestamps = [];
+    this.telemetryNavigatorPinnedOnlyMode = false;
     this.telemetryNavigatorPinLimitMessage = '';
     this.persistPinnedTelemetryTimestamps();
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  toggleTelemetryNavigatorPinnedOnlyMode(): void {
+    if (!this.telemetryNavigatorPinnedTimestamps.length && !this.telemetryNavigatorPinnedOnlyMode) {
+      return;
+    }
+
+    this.telemetryNavigatorPinnedOnlyMode = !this.telemetryNavigatorPinnedOnlyMode;
     this.telemetryNavigatorOffset = 0;
     this.clampTelemetryNavigatorOffset();
   }
@@ -1311,6 +1326,35 @@ export class ActionsComponent implements OnInit {
     }
 
     this.focusTelemetryPoint(point);
+  }
+
+  getPinnedSnapshotAgeLabel(timestamp: number): string {
+    if (!this.adoptionTelemetry.length) {
+      return 'Age --';
+    }
+
+    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
+    const diffMinutes = Math.max(0, Math.round((latestTimestamp - timestamp) / (60 * 1000)));
+    if (diffMinutes < 60) {
+      return `Age ${diffMinutes}m`;
+    }
+
+    const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) {
+      return `Age ${diffHours}h`;
+    }
+
+    const diffDays = Math.round(diffHours / 24);
+    return `Age ${diffDays}d`;
+  }
+
+  getPinnedSnapshotContextLabel(point: AdoptionTelemetryPoint): string {
+    if (!this.adoptionTelemetry.length) {
+      return 'outside window';
+    }
+
+    const range = this.getTelemetryViewRange();
+    return point.timestamp >= range.start && point.timestamp <= range.end ? 'within window' : 'outside window';
   }
 
   unpinTelemetryNavigatorTimestamp(timestamp: number): void {
@@ -1540,6 +1584,11 @@ export class ActionsComponent implements OnInit {
     const orderedPinned = this.telemetryNavigatorSortOrder === 'newest'
       ? [...pinnedPoints].sort((left, right) => right.timestamp - left.timestamp)
       : [...pinnedPoints].sort((left, right) => left.timestamp - right.timestamp);
+
+    if (this.telemetryNavigatorPinnedOnlyMode) {
+      return orderedPinned;
+    }
+
     const points = this.adoptionTelemetry.filter(
       (point) => !pinnedTimestamps.has(point.timestamp)
         && !visibleTimestamps.has(point.timestamp)
