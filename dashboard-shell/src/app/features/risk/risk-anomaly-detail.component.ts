@@ -8,6 +8,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service';
 import { ProjectsService } from '../../shared/services/projects.service';
+import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 
 @Component({
   selector: 'app-risk-anomaly-detail',
@@ -358,30 +359,6 @@ export class RiskAnomalyDetailComponent implements OnInit {
   }
 
   getRecommendedActions(): string[] {
-    if (!this.anomaly) {
-      return [];
-    }
-
-    const actions: string[] = [];
-
-    if (this.anomaly.severity === 'CRITICAL' || this.anomaly.severity === 'HIGH') {
-      actions.push('Escalate to the delivery and engineering leads within 24 hours and assign a single remediation owner.');
-    } else {
-      actions.push('Track in the weekly risk review and assign an owner to validate corrective actions.');
-    }
-
-    if (this.anomaly.trend === 'regression') {
-      actions.push('Freeze non-essential scope changes until anomaly trend stabilizes for at least one reporting cycle.');
-    } else if (this.anomaly.trend === 'watch') {
-      actions.push('Increase monitoring cadence and verify signal quality before the next release checkpoint.');
-    } else if (this.anomaly.trend === 'improving') {
-      actions.push('Preserve current mitigation plan and confirm that improvements hold across the next sprint.');
-    }
-
-    if (this.anomaly.metrics.severityCounts.critical > 0) {
-      actions.push('Run a root-cause review for critical events and capture preventive controls in the action tracker.');
-    }
-
-    return actions;
+    return getRecommendedActionsForAnomaly(this.anomaly);
   }
 }
