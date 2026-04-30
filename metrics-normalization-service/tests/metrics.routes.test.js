@@ -127,4 +127,68 @@ describe('metrics.routes', () => {
     expect(res.body.projectId).toBe('p3');
     expect(res.body.trend).toBe('regression');
   });
+
+  test('GET /metrics/projects/:projectId/anomalies returns classified anomaly details', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p4',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+    orchestrator.captureSnapshot();
+
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p4',
+      timestamp: '2026-04-29T10:05:00.000Z',
+      severity: 'critical',
+    });
+    aggregator.ingest({
+      source: 'jira',
+      eventType: 'issue_blocked',
+      projectId: 'p4',
+      timestamp: '2026-04-29T10:06:00.000Z',
+      severity: 'high',
+    });
+
+    const res = await request(app).get('/metrics/projects/p4/anomalies');
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe('p4');
+    expect(res.body.severity).toBe('CRITICAL');
+    expect(res.body.trend).toBe('regression');
+    expect(res.body.reasons.length).toBeGreaterThan(0);
+  });
+
+  test('GET /metrics/anomalies returns portfolio anomaly list sorted by score', async () => {
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-low',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'medium',
+    });
+
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-high',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+    aggregator.ingest({
+      source: 'jira',
+      eventType: 'issue_blocked',
+      projectId: 'p-high',
+      timestamp: '2026-04-29T10:01:00.000Z',
+      severity: 'high',
+    });
+
+    const res = await request(app).get('/metrics/anomalies');
+    expect(res.status).toBe(200);
+    expect(res.body.totalProjects).toBe(2);
+    expect(res.body.anomalies[0].projectId).toBe('p-high');
+    expect(res.body.anomalies[0].anomalyScore).toBeGreaterThanOrEqual(res.body.anomalies[1].anomalyScore);
+  });
 });

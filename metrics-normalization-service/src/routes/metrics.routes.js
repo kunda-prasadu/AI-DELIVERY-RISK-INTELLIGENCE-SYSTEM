@@ -5,6 +5,7 @@ const { normalizeBatch } = require('../models/event.normalizer');
 const aggregator = require('../models/metrics.aggregator');
 const orchestrator = require('../models/pipeline.orchestrator');
 const { analyzeProjectTrend } = require('../models/trend.analyzer');
+const { classifyProjectAnomaly, classifyPortfolioAnomalies } = require('../models/anomaly.classifier');
 
 const router = express.Router();
 
@@ -35,8 +36,28 @@ router.get('/projects/:projectId/trend', (req, res) => {
   return res.status(200).json(analyzeProjectTrend(current, previous));
 });
 
+router.get('/projects/:projectId/anomalies', (req, res) => {
+  const current = aggregator.getProjectMetrics(req.params.projectId);
+  if (!current) return res.status(404).json({ error: 'Project metrics not found' });
+
+  const previous = orchestrator.getPreviousMetrics(req.params.projectId);
+  return res.status(200).json(classifyProjectAnomaly(current, previous));
+});
+
 router.get('/projects', (_req, res) => {
   res.status(200).json(aggregator.listProjectMetrics());
+});
+
+router.get('/anomalies', (_req, res) => {
+  const anomalies = classifyPortfolioAnomalies(
+    aggregator.listProjectMetrics(),
+    (projectId) => orchestrator.getPreviousMetrics(projectId)
+  );
+
+  return res.status(200).json({
+    totalProjects: anomalies.length,
+    anomalies,
+  });
 });
 
 router.get('/summary', (_req, res) => {
