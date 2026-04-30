@@ -70,10 +70,11 @@
 
 - [x] `check:live` re-run succeeded after deployment
 - [x] `smoke` re-run succeeded after deployment
-- [ ] 30-minute stability window passed
-- [ ] No sustained alert threshold breaches
+- [x] 30-minute stability window passed
+- [x] No sustained alert threshold breaches
 - [x] Stakeholder confirmation posted
 
 Notes:
 - 2026-04-29T17:34Z: Resolved false-negative container health by exempting `identity-service` `/health` endpoint from global request rate limiting.
 - 2026-04-29T17:34Z onward: identity container reports `healthy`; begin fresh 30-minute stability observation from this timestamp.
+- 2026-04-30T02:50Z: Final closeout verification confirmed all compose services healthy for multiple hours, `check:live` PASS, `smoke` PASS, and no sustained critical log patterns across core services.
