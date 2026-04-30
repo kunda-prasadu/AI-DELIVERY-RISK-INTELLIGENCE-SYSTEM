@@ -3,20 +3,38 @@ import { of, throwError } from 'rxjs';
 import { EngineeringComponent } from './engineering.component';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { RiskService } from '../../shared/services/risk.service';
+import { FeedbackService } from '../../shared/services/feedback.service';
 
 describe('EngineeringComponent', () => {
   let projectsServiceSpy: jasmine.SpyObj<ProjectsService>;
   let riskServiceSpy: jasmine.SpyObj<RiskService>;
+  let feedbackServiceSpy: jasmine.SpyObj<FeedbackService>;
 
   beforeEach(async () => {
     projectsServiceSpy = jasmine.createSpyObj<ProjectsService>('ProjectsService', ['getProjects']);
     riskServiceSpy = jasmine.createSpyObj<RiskService>('RiskService', ['refreshRiskScores', 'getPortfolioAnomalies', 'getPortfolioAnomalySummary']);
+    feedbackServiceSpy = jasmine.createSpyObj<FeedbackService>('FeedbackService', ['getLearning', 'submit']);
+    feedbackServiceSpy.getLearning.and.returnValue(
+      of({
+        learning: {
+          total: 0,
+          signalCounts: { accepted: 0, rejected: 0, deferred: 0, corrected: 0 },
+          acceptanceRate: 0,
+          rejectionRate: 0,
+          byTargetType: { recommendation: { total: 0, accepted: 0, rejected: 0 }, insight: { total: 0, accepted: 0, rejected: 0 }, anomaly: { total: 0, accepted: 0, rejected: 0 }, report: { total: 0, accepted: 0, rejected: 0 } },
+          corrections: [],
+          topRejected: [],
+          generatedAt: new Date().toISOString(),
+        },
+      })
+    );
 
     await TestBed.configureTestingModule({
       imports: [EngineeringComponent],
       providers: [
         { provide: ProjectsService, useValue: projectsServiceSpy },
         { provide: RiskService, useValue: riskServiceSpy },
+        { provide: FeedbackService, useValue: feedbackServiceSpy },
       ],
     }).compileComponents();
   });
@@ -216,5 +234,21 @@ describe('EngineeringComponent', () => {
     expect(component.hotspots.length).toBe(0);
     expect(component.deliveryPressure).toBe(0);
     expect(compiled.textContent).toContain('No engineering insights are available yet.');
+  });
+
+  it('should initialize feedback panel defaults', () => {
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [], total: 0 } as any));
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([] as any));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(of([] as any));
+    riskServiceSpy.getPortfolioAnomalySummary.and.returnValue(of({ totalProjects: 0, criticalCount: 0, highCount: 0, mediumCount: 0, lowCount: 0, escalatedCount: 0, topAnomalies: [] } as any));
+
+    const fixture = TestBed.createComponent(EngineeringComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    expect(component.feedbackTargetType).toBe('recommendation');
+    expect(component.feedbackSignal).toBe('accepted');
+    expect(component.feedbackSubmitting).toBeFalse();
+    expect(feedbackServiceSpy.getLearning).toHaveBeenCalled();
   });
 });

@@ -7,6 +7,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectItem, ProjectsService } from '../../shared/services/projects.service';
 import { PortfolioAnomalySummary, ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { FeedbackService, FeedbackSignal, LearningSummary, SubmitFeedbackPayload } from '../../shared/services/feedback.service';
 
 interface EngineeringHotspot {
   projectId: string;
@@ -174,6 +175,94 @@ interface EngineeringHotspot {
           <div class="state-content">
             <p>No engineering insights are available yet.</p>
           </div>
+        </mat-card-content>
+      </mat-card>
+
+      <!-- ── Feedback Loop & Learning Panel ──────────────────────── -->
+      <mat-card class="section-card">
+        <mat-card-header>
+          <mat-card-title>Feedback Loop &amp; Learning Signals</mat-card-title>
+          <mat-card-subtitle>Submit feedback on model outputs and view acceptance trends</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="insights-controls-row" style="margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+            <label>Target Type
+              <select [value]="feedbackTargetType" (change)="feedbackTargetType = $any($event.target).value">
+                <option value="recommendation">Recommendation</option>
+                <option value="insight">Insight</option>
+                <option value="anomaly">Anomaly</option>
+                <option value="report">Report</option>
+              </select>
+            </label>
+            <label>Target ID
+              <input type="text" [value]="feedbackTargetId" (input)="feedbackTargetId = $any($event.target).value" placeholder="e.g. rec-123" style="padding:4px 8px;border:1px solid var(--ri-outline);border-radius:4px;font-size:13px;background:var(--ri-surface);color:inherit;" />
+            </label>
+            <label>Signal
+              <select [value]="feedbackSignal" (change)="feedbackSignal = $any($event.target).value">
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+                <option value="deferred">Deferred</option>
+                <option value="corrected">Corrected</option>
+              </select>
+            </label>
+            <label>Comment
+              <input type="text" [value]="feedbackComment" (input)="feedbackComment = $any($event.target).value" placeholder="Optional comment" style="padding:4px 8px;border:1px solid var(--ri-outline);border-radius:4px;font-size:13px;background:var(--ri-surface);color:inherit;" />
+            </label>
+            <button mat-flat-button type="button" color="primary" (click)="submitFeedback()" [disabled]="feedbackSubmitting || !feedbackTargetId">
+              {{ feedbackSubmitting ? 'Submitting...' : 'Submit Feedback' }}
+            </button>
+            <button mat-stroked-button type="button" (click)="loadLearning()" [disabled]="learningLoading">Refresh Learning</button>
+          </div>
+
+          <p *ngIf="feedbackSuccessMsg" style="color:#388e3c;font-size:13px;margin:0 0 12px;">{{ feedbackSuccessMsg }}</p>
+          <p *ngIf="feedbackErrorMsg" style="color:#b3261e;font-size:13px;margin:0 0 12px;">{{ feedbackErrorMsg }}</p>
+
+          <div class="state-content" *ngIf="learningLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+          </div>
+
+          <div *ngIf="!learningLoading && learningSummary">
+            <div class="stats-grid" style="margin-bottom:16px;">
+              <mat-card class="stat-card pressure">
+                <mat-card-content>
+                  <p class="stat-value">{{ learningSummary.total }}</p>
+                  <p class="stat-label">Total Feedback</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card trend">
+                <mat-card-content>
+                  <p class="stat-value">{{ learningSummary.acceptanceRate }}%</p>
+                  <p class="stat-label">Acceptance Rate</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card critical">
+                <mat-card-content>
+                  <p class="stat-value">{{ learningSummary.rejectionRate }}%</p>
+                  <p class="stat-label">Rejection Rate</p>
+                </mat-card-content>
+              </mat-card>
+              <mat-card class="stat-card events">
+                <mat-card-content>
+                  <p class="stat-value">{{ learningSummary.corrections.length }}</p>
+                  <p class="stat-label">Corrections</p>
+                </mat-card-content>
+              </mat-card>
+            </div>
+
+            <div *ngIf="learningSummary.topRejected.length" style="margin-top:12px;">
+              <p style="font-size:13px;font-weight:600;margin:0 0 8px;">Top Rejected Targets</p>
+              <div style="display:flex;flex-direction:column;gap:6px;">
+                <div *ngFor="let item of learningSummary.topRejected" style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--ri-surface-container);border-radius:6px;font-size:13px;">
+                  <span>{{ item.targetId }}</span>
+                  <span style="color:#b3261e;font-weight:600;">{{ item.count }} rejection{{ item.count > 1 ? 's' : '' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <mat-card class="state-card" *ngIf="!learningLoading && !learningSummary">
+            <mat-card-content><p style="text-align:center;color:var(--ri-on-surface-variant);">No feedback submitted yet. Use the form above to log your first signal.</p></mat-card-content>
+          </mat-card>
         </mat-card-content>
       </mat-card>
     </div>
@@ -370,13 +459,26 @@ export class EngineeringComponent implements OnInit {
   modelHealthIndex = 0;
   escalatedSignalRatio = 0;
 
+  // Feedback panel state
+  feedbackTargetType: 'recommendation' | 'insight' | 'anomaly' | 'report' = 'recommendation';
+  feedbackTargetId = '';
+  feedbackSignal: FeedbackSignal = 'accepted';
+  feedbackComment = '';
+  feedbackSubmitting = false;
+  feedbackSuccessMsg = '';
+  feedbackErrorMsg = '';
+  learningSummary: LearningSummary | null = null;
+  learningLoading = false;
+
   constructor(
     private projectsService: ProjectsService,
     private riskService: RiskService,
+    private feedbackService: FeedbackService,
   ) {}
 
   ngOnInit(): void {
     this.loadInsights();
+    this.loadLearning();
   }
 
   loadInsights(): void {
@@ -496,5 +598,52 @@ export class EngineeringComponent implements OnInit {
     const entries = Object.entries(riskScore.signals) as Array<[EngineeringHotspot['dominantSignal'], number]>;
     entries.sort((a, b) => a[1] - b[1]);
     return entries[0][0];
+  }
+
+  // ── Feedback Loop ──────────────────────────────────────────────────────────
+
+  loadLearning(): void {
+    this.learningLoading = true;
+    this.feedbackService.getLearning().subscribe({
+      next: (res) => {
+        this.learningSummary = res.learning;
+        this.learningLoading = false;
+      },
+      error: (err) => {
+        console.error('Learning data load error:', err);
+        this.learningLoading = false;
+      },
+    });
+  }
+
+  submitFeedback(): void {
+    if (!this.feedbackTargetId.trim()) return;
+
+    this.feedbackSubmitting = true;
+    this.feedbackSuccessMsg = '';
+    this.feedbackErrorMsg = '';
+
+    const payload: SubmitFeedbackPayload = {
+      projectId: this.hotspots[0]?.projectId || 'portfolio',
+      targetType: this.feedbackTargetType,
+      targetId: this.feedbackTargetId.trim(),
+      signal: this.feedbackSignal,
+      comment: this.feedbackComment,
+    };
+
+    this.feedbackService.submit(payload).subscribe({
+      next: () => {
+        this.feedbackSubmitting = false;
+        this.feedbackSuccessMsg = `Feedback recorded: ${this.feedbackSignal} for ${this.feedbackTargetId}`;
+        this.feedbackTargetId = '';
+        this.feedbackComment = '';
+        this.loadLearning();
+      },
+      error: (err) => {
+        console.error('Feedback submit error:', err);
+        this.feedbackSubmitting = false;
+        this.feedbackErrorMsg = 'Failed to submit feedback. Please try again.';
+      },
+    });
   }
 }
