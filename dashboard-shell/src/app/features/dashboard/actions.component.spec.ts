@@ -521,6 +521,41 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should recenter the telemetry view when selecting an older navigator point', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 20 }, (_, index) => ({
+      timestamp: now - ((19 - index) * 30 * 60 * 1000),
+      openCount: Math.max(20 - index, 0),
+      inProgressCount: index % 3,
+      completedCount: index,
+      adoptionRate: Math.min(10 + (index * 4), 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+      const beforeLatest = secondComponent.getTelemetryWindowPoints().slice(-1)[0];
+      const navigatorPoint = secondComponent.getTelemetryNavigatorPoints()[2];
+
+      expect(navigatorPoint).toBeTruthy();
+
+      secondComponent.focusTelemetryPoint(navigatorPoint);
+
+      const afterLatest = secondComponent.getTelemetryWindowPoints().slice(-1)[0];
+      expect(secondComponent.telemetryPanOffsetSteps).toBeGreaterThan(0);
+      expect(afterLatest.timestamp).toBeLessThan(beforeLatest.timestamp);
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(navigatorPoint.timestamp);
+      expect(secondComponent.canPanTelemetryNewer()).toBeTrue();
+      done();
+    }, 100);
+  });
+
   it('should derive per-series rates for the active telemetry point', (done) => {
     const now = Date.now();
     const seed = [

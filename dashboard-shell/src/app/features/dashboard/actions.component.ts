@@ -241,6 +241,20 @@ type TelemetryWindow = '1h' | '24h' | '7d';
               <span class="telemetry-meta">{{ point.completedCount }} completed · {{ point.inProgressCount }} in progress</span>
             </button>
           </div>
+
+          <div *ngIf="getTelemetryNavigatorPoints().length" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+            <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Jump To Older Snapshot</span>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <button
+                *ngFor="let point of getTelemetryNavigatorPoints()"
+                mat-stroked-button
+                type="button"
+                [class.window-active]="isActiveTelemetryPoint(point)"
+                (click)="focusTelemetryPoint(point)">
+                {{ formatTime(point.timestamp) }} · {{ point.adoptionRate }}%
+              </button>
+            </div>
+          </div>
         </mat-card-content>
       </mat-card>
 
@@ -1075,6 +1089,14 @@ export class ActionsComponent implements OnInit {
     return [...this.getTelemetryWindowPoints()].slice(-7).reverse();
   }
 
+  getTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
+    const visibleTimestamps = new Set(this.getTelemetryWindowPoints().map((point) => point.timestamp));
+    return [...this.adoptionTelemetry]
+      .reverse()
+      .filter((point) => !visibleTimestamps.has(point.timestamp))
+      .slice(0, 8);
+  }
+
   buildTelemetryPolyline(points: AdoptionTelemetryPoint[], series: TelemetrySeriesKey = 'adoption'): string {
     const chartPoints = this.buildTelemetryChartPoints(points, series);
     if (chartPoints.length < 2) {
@@ -1137,6 +1159,18 @@ export class ActionsComponent implements OnInit {
   }
 
   selectTelemetryTimelinePoint(point: AdoptionTelemetryPoint): void {
+    this.setHoveredTelemetryPoint(point);
+  }
+
+  focusTelemetryPoint(point: AdoptionTelemetryPoint): void {
+    if (!this.adoptionTelemetry.length) {
+      return;
+    }
+
+    const latestTimestamp = this.adoptionTelemetry[this.adoptionTelemetry.length - 1].timestamp;
+    const estimatedOffset = Math.round((latestTimestamp - point.timestamp) / this.getTelemetryPanStepMs());
+    this.telemetryPanOffsetSteps = Math.max(0, Math.min(this.getMaxTelemetryPanOffsetSteps(), estimatedOffset));
+    this.syncActiveTelemetryPoint();
     this.setHoveredTelemetryPoint(point);
   }
 
