@@ -103,6 +103,28 @@ describe('RiskScoreCardComponent', () => {
     expect(fixture.componentInstance.retryTrend.emit).toHaveBeenCalledWith('p1');
   });
 
+  it('should disable retry button when retryDisabled is true', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'fetch_failed';
+    fixture.componentInstance.retryDisabled = true;
+    fixture.detectChanges();
+
+    const btn = fixture.nativeElement.querySelector('.trend-retry-btn') as HTMLButtonElement;
+    expect(btn.disabled).toBeTrue();
+  });
+
+  it('should render retry hint message when provided', () => {
+    const fixture = TestBed.createComponent(RiskScoreCardComponent);
+    fixture.componentInstance.riskScore = baseScore;
+    fixture.componentInstance.trendDirection = 'fetch_failed';
+    fixture.componentInstance.retryHint = 'Retry available in 5s';
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Retry available in 5s');
+  });
+
   it('should render worsening trend badge with ↑ arrow', () => {
     const fixture = TestBed.createComponent(RiskScoreCardComponent);
     fixture.componentInstance.riskScore = baseScore;

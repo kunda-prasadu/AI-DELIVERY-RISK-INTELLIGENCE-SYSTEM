@@ -85,10 +85,15 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
             type="button"
             class="trend-retry-btn"
             *ngIf="trendDirection === 'fetch_failed'"
+            [disabled]="retryDisabled"
             (click)="onRetryTrend()"
           >
             Retry
           </button>
+        </div>
+
+        <div class="trend-retry-hint" *ngIf="!trendLoading && trendDirection === 'fetch_failed' && retryHint">
+          <small>{{ retryHint }}</small>
         </div>
 
         <div class="trend-meta" *ngIf="!trendLoading && trendDirection && (trendLastUpdated || trendAgeStatus)">
@@ -219,6 +224,19 @@ export type TrendAgeStatus = 'fresh' | 'stale' | null;
       background: #ffebee;
     }
 
+    .trend-retry-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      background: #f5f5f5;
+    }
+
+    .trend-retry-hint {
+      margin-top: 4px;
+      text-align: center;
+      color: #8a5a00;
+      font-size: 11px;
+    }
+
     .trend-meta {
       margin-top: 4px;
       display: flex;
@@ -283,6 +301,8 @@ export class RiskScoreCardComponent {
   @Input() trendLoading = false;
   @Input() trendLastUpdated: string | null = null;
   @Input() trendAgeStatus: TrendAgeStatus = null;
+  @Input() retryDisabled = false;
+  @Input() retryHint: string | null = null;
   @Output() retryTrend = new EventEmitter<string>();
 
   constructor(public riskService: RiskService) {}

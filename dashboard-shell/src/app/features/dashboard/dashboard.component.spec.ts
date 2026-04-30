@@ -392,4 +392,24 @@ describe('DashboardComponent', () => {
 
     expect(riskServiceSpy.getProjectRiskTrend).not.toHaveBeenCalled();
   });
+
+  it('should report retry disabled and cooldown hint while waiting for next retry window', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.componentInstance.projectTrendLoading = { p1: false };
+    fixture.componentInstance.projectTrendRetryAttempts = { p1: 1 };
+    fixture.componentInstance.projectTrendNextRetryAt = { p1: Date.now() + 2_000 };
+
+    expect(fixture.componentInstance.isRetryDisabled('p1')).toBeTrue();
+    expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry available in');
+  });
+
+  it('should report retry limit hint when max attempts reached', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.componentInstance.projectTrendLoading = { p1: false };
+    fixture.componentInstance.projectTrendRetryAttempts = { p1: 3 };
+    fixture.componentInstance.projectTrendNextRetryAt = { p1: 0 };
+
+    expect(fixture.componentInstance.isRetryDisabled('p1')).toBeTrue();
+    expect(fixture.componentInstance.getRetryHint('p1')).toContain('Retry limit reached');
+  });
 });

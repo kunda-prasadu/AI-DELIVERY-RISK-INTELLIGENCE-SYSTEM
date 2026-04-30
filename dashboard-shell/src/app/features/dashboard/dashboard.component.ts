@@ -125,6 +125,8 @@ interface DashboardMetrics {
               [trendDirection]="projectTrendDirections[risk.projectId] || null"
               [trendLastUpdated]="projectTrendUpdatedAt[risk.projectId] || null"
               [trendAgeStatus]="projectTrendAgeStatus[risk.projectId] || null"
+              [retryDisabled]="isRetryDisabled(risk.projectId)"
+              [retryHint]="getRetryHint(risk.projectId)"
               (retryTrend)="retryProjectTrend($event)"
             ></app-risk-score-card>
           </div>
@@ -518,6 +520,27 @@ export class DashboardComponent implements OnInit {
 
   getTopAnomalyAction(anomaly: ProjectAnomaly): string {
     return getRecommendedActionsForAnomaly(anomaly)[0] || 'Continue monitoring and re-evaluate on next snapshot.';
+  }
+
+  isRetryDisabled(projectId: string): boolean {
+    const now = Date.now();
+    const attempts = this.projectTrendRetryAttempts[projectId] || 0;
+    const nextRetryAt = this.projectTrendNextRetryAt[projectId] || 0;
+    return attempts >= this.MAX_TREND_RETRY_ATTEMPTS || now < nextRetryAt || this.projectTrendLoading[projectId] === true;
+  }
+
+  getRetryHint(projectId: string): string | null {
+    const attempts = this.projectTrendRetryAttempts[projectId] || 0;
+    if (attempts >= this.MAX_TREND_RETRY_ATTEMPTS) {
+      return 'Retry limit reached. Refresh dashboard to reset.';
+    }
+
+    const remainingMs = (this.projectTrendNextRetryAt[projectId] || 0) - Date.now();
+    if (remainingMs > 0) {
+      return `Retry available in ${Math.ceil(remainingMs / 1000)}s`;
+    }
+
+    return null;
   }
 
   retryProjectTrend(projectId: string): void {
