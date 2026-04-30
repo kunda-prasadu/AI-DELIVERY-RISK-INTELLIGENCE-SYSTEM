@@ -134,6 +134,35 @@ describe('DashboardComponent', () => {
     expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk/anomalies', 'p1']);
   });
 
+  it('should navigate to anomaly detail when action hint is clicked', () => {
+    projectsServiceSpy.getProjects.and.returnValue(of({ projects: [{ id: 'p-crit' } as any], total: 1 }));
+    riskServiceSpy.refreshRiskScores.and.returnValue(of([]));
+    riskServiceSpy.getPortfolioAnomalies.and.returnValue(
+      of([
+        {
+          projectId: 'p-crit',
+          severity: 'CRITICAL',
+          anomalyScore: 90,
+          trend: 'regression',
+          reasons: ['critical regression'],
+          metrics: {
+            totalEvents: 6,
+            severityCounts: { low: 0, medium: 0, high: 1, critical: 5 },
+            latestEventAt: new Date().toISOString(),
+          },
+        },
+      ] as any)
+    );
+
+    const fixture = TestBed.createComponent(DashboardComponent);
+    fixture.detectChanges();
+
+    const hint = fixture.nativeElement.querySelector('.anomaly-action-hint') as HTMLElement;
+    hint.click();
+
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk/anomalies', 'p-crit']);
+  });
+
   it('should compute top anomaly action hint', () => {
     const fixture = TestBed.createComponent(DashboardComponent);
     const action = fixture.componentInstance.getTopAnomalyAction({

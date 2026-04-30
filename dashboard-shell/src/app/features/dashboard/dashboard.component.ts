@@ -147,7 +147,9 @@ interface DashboardMetrics {
             <div class="anomaly-detail">
               <span class="program-name">{{ anomaly.projectId }}</span>
               <p class="anomaly-reason">{{ anomaly.reasons[0] || 'No anomaly rationale available.' }}</p>
-              <p class="anomaly-action-hint">Action: {{ getTopAnomalyAction(anomaly) }}</p>
+              <p class="anomaly-action-hint" role="button" tabindex="0"
+                (click)="openAnomalyDetail(anomaly.projectId)"
+                (keyup.enter)="openAnomalyDetail(anomaly.projectId)">Action: {{ getTopAnomalyAction(anomaly) }}</p>
             </div>
             <div class="anomaly-actions">
               <span class="risk-chip" [class]="'risk-' + anomaly.severity.toLowerCase()">
@@ -340,6 +342,15 @@ interface DashboardMetrics {
       font-weight: 600;
       line-height: 1.35;
       max-width: 700px;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-color: transparent;
+      transition: text-decoration-color 0.15s ease;
+
+      &:hover, &:focus {
+        text-decoration-color: #1f3a7a;
+        outline: none;
+      }
     }
 
     .risk-chip {
