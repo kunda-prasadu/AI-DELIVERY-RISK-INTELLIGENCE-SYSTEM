@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { AuthService, AuthUser } from '../services/auth.service';
+import { AlertService } from '../services/alert.service';
 
 @Component({
   selector: 'app-header',
@@ -20,9 +21,9 @@ import { AuthService, AuthUser } from '../services/auth.service';
       </div>
 
       <div class="header-right">
-        <button mat-icon-button class="icon-btn" title="Notifications">
+        <button mat-icon-button class="icon-btn" title="Active Alerts">
           <mat-icon class="notification-icon">notifications</mat-icon>
-          <span class="notification-badge">3</span>
+          <span class="notification-badge" *ngIf="activeAlertCount > 0">{{ activeAlertCount > 99 ? '99+' : activeAlertCount }}</span>
         </button>
 
         <button mat-icon-button class="icon-btn" title="Export">
@@ -156,8 +157,12 @@ import { AuthService, AuthUser } from '../services/auth.service';
 export class HeaderComponent implements OnInit {
   currentUser: AuthUser | null = null;
   initials = 'U';
+  activeAlertCount = 0;
 
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private alertService: AlertService,
+  ) {}
 
   ngOnInit(): void {
     this.authService.user$.subscribe(user => {
@@ -166,6 +171,10 @@ export class HeaderComponent implements OnInit {
         const parts = user.email.split('@')[0].split('.');
         this.initials = (parts[0][0] + (parts[1]?.[0] || '')).toUpperCase();
       }
+    });
+
+    this.alertService.getActiveAlertCount().subscribe(count => {
+      this.activeAlertCount = count;
     });
   }
 
