@@ -102,6 +102,8 @@ describe('DashboardComponent', () => {
     expect(compiled.textContent).toContain('Portfolio Risk Heatmap');
     expect(compiled.textContent).toContain('Risk Scorecards');
     expect(compiled.textContent).toContain('Anomaly Radar');
+    expect(compiled.textContent).toContain('Action:');
+    expect(compiled.textContent).toContain('Escalate to the delivery and engineering leads within 24 hours');
   });
 
   it('should show unavailable state when both projects and risks are empty', () => {
@@ -130,5 +132,23 @@ describe('DashboardComponent', () => {
     fixture.componentInstance.openAnomalyDetail('p1');
 
     expect(routerSpy.navigate).toHaveBeenCalledWith(['/risk/anomalies', 'p1']);
+  });
+
+  it('should compute top anomaly action hint', () => {
+    const fixture = TestBed.createComponent(DashboardComponent);
+    const action = fixture.componentInstance.getTopAnomalyAction({
+      projectId: 'p1',
+      severity: 'LOW',
+      anomalyScore: 18,
+      trend: 'stable',
+      reasons: ['signals are stable'],
+      metrics: {
+        totalEvents: 2,
+        severityCounts: { low: 2, medium: 0, high: 0, critical: 0 },
+        latestEventAt: new Date().toISOString(),
+      },
+    });
+
+    expect(action).toContain('Track in the weekly risk review');
   });
 });

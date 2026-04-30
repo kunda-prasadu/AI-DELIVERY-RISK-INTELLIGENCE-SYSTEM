@@ -8,6 +8,7 @@ import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectsService } from '../../shared/services/projects.service';
 import { ProjectAnomaly, RiskScore, RiskService } from '../../shared/services/risk.service';
+import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { RiskHeatmapComponent } from '../../shared/components/risk-heatmap.component';
 import { RiskScoreCardComponent } from '../../shared/components/risk-score-card.component';
 
@@ -146,6 +147,7 @@ interface DashboardMetrics {
             <div class="anomaly-detail">
               <span class="program-name">{{ anomaly.projectId }}</span>
               <p class="anomaly-reason">{{ anomaly.reasons[0] || 'No anomaly rationale available.' }}</p>
+              <p class="anomaly-action-hint">Action: {{ getTopAnomalyAction(anomaly) }}</p>
             </div>
             <div class="anomaly-actions">
               <span class="risk-chip" [class]="'risk-' + anomaly.severity.toLowerCase()">
@@ -331,6 +333,15 @@ interface DashboardMetrics {
       font-size: 12px;
     }
 
+    .anomaly-action-hint {
+      margin: 0;
+      color: #1f3a7a;
+      font-size: 12px;
+      font-weight: 600;
+      line-height: 1.35;
+      max-width: 700px;
+    }
+
     .risk-chip {
       font-size: 12px;
       font-weight: 700;
@@ -440,5 +451,9 @@ export class DashboardComponent implements OnInit {
 
   openAnomalyDetail(projectId: string): void {
     this.router.navigate(['/risk/anomalies', projectId]);
+  }
+
+  getTopAnomalyAction(anomaly: ProjectAnomaly): string {
+    return getRecommendedActionsForAnomaly(anomaly)[0] || 'Continue monitoring and re-evaluate on next snapshot.';
   }
 }
