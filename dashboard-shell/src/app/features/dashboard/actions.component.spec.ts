@@ -4,6 +4,7 @@ import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service'
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
 import { InsightsService } from '../../shared/services/insights.service';
 import { RecommendationsService } from '../../shared/services/recommendations.service';
+import { ReportingService } from '../../shared/services/reporting.service';
 import { of, throwError } from 'rxjs';
 
 describe('ActionsComponent', () => {
@@ -13,6 +14,7 @@ describe('ActionsComponent', () => {
   let mockProjectsService: any;
   let mockInsightsService: any;
   let mockRecommendationsService: any;
+  let mockReportingService: any;
 
   const mockProject: ProjectItem = {
     id: 'proj-1',
@@ -114,6 +116,31 @@ describe('ActionsComponent', () => {
       ),
     };
 
+    mockReportingService = {
+      listReports: jasmine.createSpy('listReports').and.returnValue(of({ reports: [], total: 0 })),
+      generateReport: jasmine.createSpy('generateReport').and.returnValue(
+        of({
+          report: {
+            reportId: 'rpt-1',
+            reportType: 'executive-summary',
+            requestedBy: 'dashboard-user',
+            generatedAt: new Date().toISOString(),
+            sections: {
+              executiveSummary: {
+                portfolioHealth: { totalProjects: 1, atRisk: 0, onTrack: 1, ragBreakdown: { RED: 0, AMBER: 0, GREEN: 1 } },
+                averageRiskScore: 0,
+                overallRag: 'GREEN',
+                openInsights: 0,
+                openRecommendations: 0,
+                anomalyCount: 0,
+              },
+              topRisks: [],
+            },
+          },
+        })
+      ),
+    };
+
     await TestBed.configureTestingModule({
       imports: [ActionsComponent],
       providers: [
@@ -121,6 +148,7 @@ describe('ActionsComponent', () => {
         { provide: ProjectsService, useValue: mockProjectsService },
         { provide: InsightsService, useValue: mockInsightsService },
         { provide: RecommendationsService, useValue: mockRecommendationsService },
+        { provide: ReportingService, useValue: mockReportingService },
       ],
     }).compileComponents();
 
@@ -1843,6 +1871,43 @@ describe('ActionsComponent', () => {
       expect(exportSpy).not.toHaveBeenCalled();
 
       done();
+    }, 100);
+  });
+
+  it('should initialize with empty executive reports list', () => {
+    expect(component.execReports).toEqual([]);
+    expect(component.execReportType).toBe('executive-summary');
+    expect(component.execReportGenerating).toBeFalse();
+  });
+
+  it('should generate an executive report and prepend to list', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      component.generateExecReport();
+
+      setTimeout(() => {
+        expect(mockReportingService.generateReport).toHaveBeenCalled();
+        expect(component.execReports.length).toBe(1);
+        expect(component.execReports[0].reportId).toBe('rpt-1');
+        expect(component.execReportGenerating).toBeFalse();
+        done();
+      }, 50);
+    }, 100);
+  });
+
+  it('should load exec reports list via loadExecReports()', (done) => {
+    fixture.detectChanges();
+
+    setTimeout(() => {
+      component.loadExecReports();
+
+      setTimeout(() => {
+        expect(mockReportingService.listReports).toHaveBeenCalled();
+        expect(component.execReports).toEqual([]);
+        expect(component.execReportsLoading).toBeFalse();
+        done();
+      }, 50);
     }, 100);
   });
 });

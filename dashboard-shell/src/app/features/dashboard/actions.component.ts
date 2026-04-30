@@ -10,6 +10,7 @@ import { RiskService, ProjectAnomaly } from '../../shared/services/risk.service'
 import { ProjectsService, ProjectItem } from '../../shared/services/projects.service';
 import { InsightItem, InsightSummary, InsightsService } from '../../shared/services/insights.service';
 import { RecommendationItem, RecommendationSummary, RecommendationsService } from '../../shared/services/recommendations.service';
+import { ExecutiveReport, ReportProject, ReportingService } from '../../shared/services/reporting.service';
 import { getRecommendedActionsForAnomaly } from '../../shared/utils/risk-guidance';
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
@@ -665,6 +666,73 @@ type RecommendationPriorityFilter = 'ALL' | 'P1' | 'P2' | 'P3';
           </div>
         </mat-tab>
       </mat-tab-group>
+
+      <!-- ── Executive Reports Panel ─────────────────────────────── -->
+      <mat-card class="section-card" *ngIf="!loading && !errorMessage">
+        <mat-card-header>
+          <mat-card-title>Executive Reports</mat-card-title>
+          <mat-card-subtitle>Generate and download portfolio-level executive reports</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="insights-controls-row" style="margin-bottom:16px;">
+            <label>
+              Report Type
+              <select [value]="execReportType" (change)="execReportType = $any($event.target).value">
+                <option value="executive-summary">Executive Summary</option>
+                <option value="risk-deep-dive">Risk Deep Dive</option>
+                <option value="portfolio-health">Portfolio Health</option>
+              </select>
+            </label>
+            <button mat-flat-button type="button" color="primary" (click)="generateExecReport()" [disabled]="execReportGenerating">
+              {{ execReportGenerating ? 'Generating...' : 'Generate Report' }}
+            </button>
+            <button mat-stroked-button type="button" (click)="loadExecReports()" [disabled]="execReportsLoading">Refresh List</button>
+          </div>
+
+          <div class="state-content" *ngIf="execReportsLoading">
+            <mat-spinner diameter="24"></mat-spinner>
+            <p>Loading reports...</p>
+          </div>
+
+          <div class="state-content" *ngIf="!execReportsLoading && execReportsError">
+            <p>{{ execReportsError }}</p>
+          </div>
+
+          <div *ngIf="!execReportsLoading && !execReportsError">
+            <div class="insight-list" *ngIf="execReports.length; else noExecReportsState">
+              <mat-card class="action-card" *ngFor="let r of execReports">
+                <mat-card-header>
+                  <div class="action-header">
+                    <div class="project-info">
+                      <strong>{{ r.reportType | titlecase }}</strong>
+                      <span class="anomaly-id">{{ r.requestedBy }} · {{ r.generatedAt | date:'medium' }}</span>
+                    </div>
+                    <mat-chip-set>
+                      <mat-chip [ngClass]="'rag-' + r.sections.executiveSummary.overallRag">
+                        {{ r.sections.executiveSummary.overallRag }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </div>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="insights-summary-row">
+                    <div class="stat"><span class="stat-value">{{ r.sections.executiveSummary.portfolioHealth.totalProjects }}</span><span class="stat-label">Projects</span></div>
+                    <div class="stat"><span class="stat-value" style="color:#d32f2f;">{{ r.sections.executiveSummary.portfolioHealth.atRisk }}</span><span class="stat-label">At Risk</span></div>
+                    <div class="stat"><span class="stat-value">{{ r.sections.executiveSummary.averageRiskScore }}</span><span class="stat-label">Avg Risk</span></div>
+                    <div class="stat"><span class="stat-value">{{ r.sections.executiveSummary.openInsights }}</span><span class="stat-label">Open Insights</span></div>
+                    <div class="stat"><span class="stat-value">{{ r.sections.executiveSummary.openRecommendations }}</span><span class="stat-label">Open Recs</span></div>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+            <ng-template #noExecReportsState>
+              <mat-card class="empty-state">
+                <mat-card-content><p>No executive reports generated yet. Click "Generate Report" to create the first one.</p></mat-card-content>
+              </mat-card>
+            </ng-template>
+          </div>
+        </mat-card-content>
+      </mat-card>
     </div>
   `,
   styles: [`
@@ -949,6 +1017,21 @@ type RecommendationPriorityFilter = 'ALL' | 'P1' | 'P2' | 'P3';
       color: white;
     }
 
+    mat-chip.rag-RED {
+      background: #d32f2f;
+      color: white;
+    }
+
+    mat-chip.rag-AMBER {
+      background: #f57c00;
+      color: white;
+    }
+
+    mat-chip.rag-GREEN {
+      background: #388e3c;
+      color: white;
+    }
+
     .action-description {
       font-size: 14px;
       color: var(--ri-on-surface);
@@ -1039,6 +1122,13 @@ export class ActionsComponent implements OnInit {
   recommendationOwnerAssignments = new Map<string, string>();
   recommendationOwnerRoleOptions = ['Engineering Lead', 'QA Lead', 'DevOps Lead', 'Delivery Manager', 'Program Manager'];
 
+  // Executive Reports
+  execReportType: 'executive-summary' | 'risk-deep-dive' | 'portfolio-health' = 'executive-summary';
+  execReports: ExecutiveReport[] = [];
+  execReportsLoading = false;
+  execReportsError = '';
+  execReportGenerating = false;
+
   totalActions = 0;
   criticalCount = 0;
   inProgressCount = 0;
@@ -1073,7 +1163,8 @@ export class ActionsComponent implements OnInit {
     private riskService: RiskService,
     private projectsService: ProjectsService,
     private insightsService: InsightsService,
-    private recommendationsService: RecommendationsService
+    private recommendationsService: RecommendationsService,
+    private reportingService: ReportingService
   ) {}
 
   ngOnInit(): void {
@@ -2585,6 +2676,55 @@ export class ActionsComponent implements OnInit {
     return new Date(timestamp).toLocaleTimeString([], {
       hour: 'numeric',
       minute: '2-digit',
+    });
+  }
+
+  // ── Executive Reports ────────────────────────────────────────────────────
+
+  loadExecReports(): void {
+    this.execReportsLoading = true;
+    this.execReportsError = '';
+    this.reportingService.listReports().subscribe({
+      next: (res) => {
+        this.execReports = res.reports;
+        this.execReportsLoading = false;
+      },
+      error: (err) => {
+        console.error('Executive reports load error:', err);
+        this.execReportsError = 'Failed to load reports.';
+        this.execReportsLoading = false;
+      },
+    });
+  }
+
+  generateExecReport(): void {
+    this.execReportGenerating = true;
+
+    const projects: ReportProject[] = this.insightProjects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      riskScore: 0,
+      status: (p as any).status || 'active',
+    }));
+
+    const payload = {
+      reportType: this.execReportType,
+      requestedBy: 'dashboard-user',
+      projects,
+      openInsights: this.insightSummary?.totalInsights ?? 0,
+      openRecommendations: this.recommendationSummary?.totalRecommendations ?? 0,
+      anomalyCount: this.allActions.length,
+    };
+
+    this.reportingService.generateReport(payload).subscribe({
+      next: (res) => {
+        this.execReports = [res.report, ...this.execReports];
+        this.execReportGenerating = false;
+      },
+      error: (err) => {
+        console.error('Executive report generation error:', err);
+        this.execReportGenerating = false;
+      },
     });
   }
 }
