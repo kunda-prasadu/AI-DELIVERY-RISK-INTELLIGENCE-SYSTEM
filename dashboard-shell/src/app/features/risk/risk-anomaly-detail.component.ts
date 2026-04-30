@@ -4,9 +4,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { of } from 'rxjs';
+import { forkJoin, of } from 'rxjs';
 import { catchError, finalize } from 'rxjs/operators';
 import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service';
+import { ProjectsService } from '../../shared/services/projects.service';
 
 @Component({
   selector: 'app-risk-anomaly-detail',
@@ -18,6 +19,9 @@ import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service'
         <div>
           <h1 class="text-display-lg">Project Anomaly Detail</h1>
           <p class="subtitle">Drilldown evidence for targeted remediation planning.</p>
+          <p class="project-context" *ngIf="projectId">
+            {{ projectName || 'Unknown Project' }} · {{ projectId }}
+          </p>
         </div>
         <button mat-stroked-button type="button" (click)="goBack()">Back to Risk Analysis</button>
       </div>
@@ -100,6 +104,14 @@ import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service'
       font-size: 14px;
     }
 
+    .project-context {
+      margin: 8px 0 0 0;
+      color: var(--ri-on-surface);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+
     .state-card,
     .detail-card {
       background: white;
@@ -176,6 +188,7 @@ import { ProjectAnomaly, RiskService } from '../../shared/services/risk.service'
 })
 export class RiskAnomalyDetailComponent implements OnInit {
   projectId = '';
+  projectName = '';
   anomaly: ProjectAnomaly | null = null;
   loading = false;
   errorMessage = '';
@@ -183,7 +196,8 @@ export class RiskAnomalyDetailComponent implements OnInit {
   constructor(
     private readonly route: ActivatedRoute,
     private readonly router: Router,
-    private readonly riskService: RiskService
+    private readonly riskService: RiskService,
+    private readonly projectsService: ProjectsService
   ) {}
 
   ngOnInit(): void {
@@ -200,15 +214,20 @@ export class RiskAnomalyDetailComponent implements OnInit {
     this.loading = true;
     this.errorMessage = '';
 
-    this.riskService
-      .getProjectAnomaly(this.projectId)
+    forkJoin({
+      anomaly: this.riskService.getProjectAnomaly(this.projectId),
+      projects: this.projectsService
+        .getProjects()
+        .pipe(catchError(() => of({ projects: [], total: 0 }))),
+    })
       .pipe(
-        catchError(() => of(null)),
+        catchError(() => of({ anomaly: null, projects: { projects: [], total: 0 } })),
         finalize(() => {
           this.loading = false;
         })
       )
-      .subscribe((anomaly) => {
+      .subscribe(({ anomaly, projects }) => {
+        this.projectName = projects.projects.find(project => project.id === this.projectId)?.name || '';
         this.anomaly = anomaly;
         if (!anomaly) {
           this.errorMessage = 'Unable to load anomaly details for this project.';
