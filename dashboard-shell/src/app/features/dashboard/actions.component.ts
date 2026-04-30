@@ -181,6 +181,7 @@ interface TelemetryNavigatorPreferences {
             <span><strong>Jump:</strong> J / K</span>
             <span><strong>Live:</strong> L</span>
             <span><strong>Presets:</strong> 1 Focus / 2 Explore / 0 Reset</span>
+            <span><strong>Export Pinned:</strong> P</span>
             <span><strong>Close:</strong> Esc</span>
           </div>
 
@@ -289,6 +290,7 @@ interface TelemetryNavigatorPreferences {
                 <button mat-stroked-button type="button" (click)="toggleTelemetryNavigatorPinnedOnlyMode()" [disabled]="!telemetryNavigatorPinnedTimestamps.length && !telemetryNavigatorPinnedOnlyMode">Pinned Only {{ telemetryNavigatorPinnedOnlyMode ? 'On' : 'Off' }}</button>
                 <button mat-stroked-button type="button" (click)="pinVisibleTelemetryNavigatorPoints()" [disabled]="!canPinVisibleTelemetryNavigatorPoints()">Pin Visible</button>
                 <button mat-stroked-button type="button" (click)="clearTelemetryNavigatorPins()" [disabled]="!telemetryNavigatorPinnedTimestamps.length">Unpin All</button>
+                <button mat-stroked-button type="button" (click)="exportPinnedTelemetrySnapshotsCsv()" [disabled]="!telemetryNavigatorPinnedTimestamps.length">Export Pinned CSV</button>
                 <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ri-on-surface-variant);">Page Size
                   <select [value]="telemetryNavigatorPageSize" (change)="setTelemetryNavigatorPageSize($any($event.target).value)" style="padding:2px 4px;border:1px solid var(--ri-outline);border-radius:4px;font-size:12px;background:var(--ri-surface);color:inherit;">
                     <option *ngFor="let size of telemetryNavigatorPageSizeOptions" [value]="size">{{ size }}</option>
@@ -1584,10 +1586,40 @@ export class ActionsComponent implements OnInit {
     URL.revokeObjectURL(url);
   }
 
+  exportPinnedTelemetrySnapshotsCsv(): void {
+    const points = this.getPinnedTelemetryNavigatorPoints();
+    if (!points.length) {
+      return;
+    }
+
+    const headers = ['timestamp_iso', 'timestamp_ms', 'adoption_rate', 'completed_count', 'in_progress_count', 'open_count'];
+    const rows = points.map((point) => [
+      new Date(point.timestamp).toISOString(),
+      point.timestamp,
+      point.adoptionRate,
+      point.completedCount,
+      point.inProgressCount,
+      point.openCount,
+    ]);
+
+    const csv = [headers, ...rows]
+      .map((row) => row.map((value) => this.escapeTelemetryCsvValue(String(value))).join(','))
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `telemetry-pinned-${Date.now()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   toggleTelemetryShortcutHelp(): void {
     this.telemetryShortcutHelpOpen = !this.telemetryShortcutHelpOpen;
   }
-
   @HostListener('window:keydown', ['$event'])
   handleTelemetryKeyboardShortcut(event: KeyboardEvent): void {
     if (this.shouldIgnoreTelemetryShortcutEvent(event)) {
@@ -1652,6 +1684,12 @@ export class ActionsComponent implements OnInit {
 
     if (key === '0') {
       this.resetTelemetryNavigatorPreferences();
+      event.preventDefault();
+      return;
+    }
+
+    if (key === 'p' && this.telemetryNavigatorPinnedTimestamps.length) {
+      this.exportPinnedTelemetrySnapshotsCsv();
       event.preventDefault();
     }
   }

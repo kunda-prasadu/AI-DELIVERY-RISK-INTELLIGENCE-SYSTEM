@@ -1635,4 +1635,93 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should export pinned snapshots as CSV and trigger download', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (4 * 30 * 60 * 1000), openCount: 8, inProgressCount: 1, completedCount: 1, adoptionRate: 20 },
+      { timestamp: now - (3 * 30 * 60 * 1000), openCount: 7, inProgressCount: 2, completedCount: 2, adoptionRate: 30 },
+      { timestamp: now - (2 * 30 * 60 * 1000), openCount: 6, inProgressCount: 2, completedCount: 3, adoptionRate: 40 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-pins-v1', JSON.stringify([seed[0].timestamp, seed[2].timestamp]));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      const pinnedPoints = secondComponent.getPinnedTelemetryNavigatorPoints();
+      expect(pinnedPoints.length).toBe(2);
+
+      let capturedBlob: Blob | null = null;
+      const clickSpy = spyOn(HTMLAnchorElement.prototype, 'click').and.stub();
+      const createObjectURLSpy = spyOn(URL, 'createObjectURL').and.callFake((blob: Blob) => {
+        capturedBlob = blob;
+        return 'blob:pinned';
+      });
+      const revokeObjectURLSpy = spyOn(URL, 'revokeObjectURL').and.stub();
+      const appendChildSpy = spyOn(document.body, 'appendChild').and.callThrough();
+      const removeChildSpy = spyOn(document.body, 'removeChild').and.callThrough();
+
+      secondComponent.exportPinnedTelemetrySnapshotsCsv();
+
+      expect(createObjectURLSpy).toHaveBeenCalled();
+      expect(revokeObjectURLSpy).toHaveBeenCalledWith('blob:pinned');
+      expect(appendChildSpy).toHaveBeenCalled();
+      expect(removeChildSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalled();
+      expect(capturedBlob).toBeTruthy();
+
+      capturedBlob!.text().then((csvText) => {
+        const lines = csvText.split('\n');
+        expect(lines[0]).toBe('timestamp_iso,timestamp_ms,adoption_rate,completed_count,in_progress_count,open_count');
+        expect(lines.length).toBe(3); // header + 2 pinned rows
+        expect(csvText).toContain('20');
+        expect(csvText).toContain('40');
+        done();
+      });
+    }, 100);
+  });
+
+  it('should trigger export pinned CSV on P keypress when pins exist', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 10 }, (_, index) => ({
+      timestamp: now - ((9 - index) * 30 * 60 * 1000),
+      openCount: 10 - index,
+      inProgressCount: 1,
+      completedCount: index,
+      adoptionRate: 10 + index * 5,
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+    localStorage.setItem('ri-action-telemetry-pins-v1', JSON.stringify([seed[0].timestamp]));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBe(1);
+
+      const exportSpy = spyOn(secondComponent, 'exportPinnedTelemetrySnapshotsCsv').and.stub();
+
+      const pEvent = new KeyboardEvent('keydown', { key: 'p' });
+      const pPreventDefaultSpy = spyOn(pEvent, 'preventDefault');
+      secondComponent.handleTelemetryKeyboardShortcut(pEvent);
+      expect(exportSpy).toHaveBeenCalled();
+      expect(pPreventDefaultSpy).toHaveBeenCalled();
+
+      // P should not trigger export when no pins exist
+      secondComponent.clearTelemetryNavigatorPins();
+      expect(secondComponent.telemetryNavigatorPinnedTimestamps.length).toBe(0);
+      exportSpy.calls.reset();
+      const pEvent2 = new KeyboardEvent('keydown', { key: 'p' });
+      secondComponent.handleTelemetryKeyboardShortcut(pEvent2);
+      expect(exportSpy).not.toHaveBeenCalled();
+
+      done();
+    }, 100);
+  });
 });
