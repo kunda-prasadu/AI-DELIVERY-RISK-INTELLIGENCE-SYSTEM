@@ -1112,6 +1112,47 @@ describe('ActionsComponent', () => {
     }, 100);
   });
 
+  it('should expose pinned snapshot management actions for jump and unpin', (done) => {
+    const now = Date.now();
+    const seed = Array.from({ length: 60 }, (_, index) => ({
+      timestamp: now - ((59 - index) * 30 * 60 * 1000),
+      openCount: Math.max(60 - index, 0),
+      inProgressCount: index % 4,
+      completedCount: index,
+      adoptionRate: Math.min(index + 5, 100),
+    }));
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('1h');
+      secondComponent.setTelemetryZoom(4);
+
+      const firstPin = secondComponent.adoptionTelemetry[10];
+      const secondPin = secondComponent.adoptionTelemetry[20];
+      secondComponent.toggleTelemetryNavigatorPin(firstPin);
+      secondComponent.toggleTelemetryNavigatorPin(secondPin);
+
+      const pinnedPoints = secondComponent.getPinnedTelemetryNavigatorPoints();
+      expect(pinnedPoints.length).toBe(2);
+
+      secondComponent.jumpToPinnedTelemetrySnapshot(firstPin.timestamp);
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(firstPin.timestamp);
+
+      secondComponent.unpinTelemetryNavigatorTimestamp(firstPin.timestamp);
+      expect(secondComponent.isTelemetryNavigatorPinned(firstPin)).toBeFalse();
+      expect(secondComponent.getPinnedTelemetryNavigatorPoints().length).toBe(1);
+
+      const persistedPins = JSON.parse(localStorage.getItem('ri-action-telemetry-pins-v1') || '[]') as number[];
+      expect(persistedPins).toEqual([secondPin.timestamp]);
+      done();
+    }, 100);
+  });
+
   it('should export the current telemetry window as CSV', (done) => {
     const now = Date.now();
     const seed = [

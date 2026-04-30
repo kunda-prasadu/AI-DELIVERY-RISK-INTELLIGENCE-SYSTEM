@@ -285,6 +285,17 @@ type TelemetryNavigatorSortOrder = 'newest' | 'oldest';
             <div *ngIf="telemetryNavigatorPinLimitMessage" style="font-size:12px;color:#b3261e;font-weight:600;">
               {{ telemetryNavigatorPinLimitMessage }}
             </div>
+            <div *ngIf="getPinnedTelemetryNavigatorPoints().length" style="display:flex;flex-direction:column;gap:6px;padding:8px;border:1px dashed var(--ri-outline);border-radius:8px;background:var(--ri-surface);">
+              <span style="font-size:12px;color:var(--ri-on-surface-variant);font-weight:600;">Pinned Snapshots</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <div *ngFor="let pinnedPoint of getPinnedTelemetryNavigatorPoints()" style="display:flex;gap:4px;align-items:center;">
+                  <button mat-stroked-button type="button" (click)="jumpToPinnedTelemetrySnapshot(pinnedPoint.timestamp)">
+                    {{ formatTime(pinnedPoint.timestamp) }} · {{ pinnedPoint.adoptionRate }}%
+                  </button>
+                  <button mat-stroked-button type="button" (click)="unpinTelemetryNavigatorTimestamp(pinnedPoint.timestamp)">Unpin</button>
+                </div>
+              </div>
+            </div>
             <div [style.display]="'flex'" [style.gap.px]="8" [style.flex-wrap]="telemetryNavigatorContinuousMode ? 'nowrap' : 'wrap'" [style.overflow-x]="telemetryNavigatorContinuousMode ? 'auto' : 'visible'" [style.padding-bottom.px]="telemetryNavigatorContinuousMode ? 4 : 0">
               <div
                 *ngFor="let point of getTelemetryNavigatorPoints()"
@@ -1276,6 +1287,40 @@ export class ActionsComponent implements OnInit {
     }
 
     this.telemetryNavigatorPinnedTimestamps = [];
+    this.telemetryNavigatorPinLimitMessage = '';
+    this.persistPinnedTelemetryTimestamps();
+    this.telemetryNavigatorOffset = 0;
+    this.clampTelemetryNavigatorOffset();
+  }
+
+  getPinnedTelemetryNavigatorPoints(): AdoptionTelemetryPoint[] {
+    const pointsByTimestamp = new Map(this.adoptionTelemetry.map((point) => [point.timestamp, point]));
+    const points = this.telemetryNavigatorPinnedTimestamps
+      .map((timestamp) => pointsByTimestamp.get(timestamp))
+      .filter((point): point is AdoptionTelemetryPoint => !!point);
+
+    return this.telemetryNavigatorSortOrder === 'newest'
+      ? [...points].sort((left, right) => right.timestamp - left.timestamp)
+      : [...points].sort((left, right) => left.timestamp - right.timestamp);
+  }
+
+  jumpToPinnedTelemetrySnapshot(timestamp: number): void {
+    const point = this.adoptionTelemetry.find((candidate) => candidate.timestamp === timestamp);
+    if (!point) {
+      return;
+    }
+
+    this.focusTelemetryPoint(point);
+  }
+
+  unpinTelemetryNavigatorTimestamp(timestamp: number): void {
+    if (!this.telemetryNavigatorPinnedTimestamps.includes(timestamp)) {
+      return;
+    }
+
+    this.telemetryNavigatorPinnedTimestamps = this.telemetryNavigatorPinnedTimestamps.filter(
+      (candidate) => candidate !== timestamp
+    );
     this.telemetryNavigatorPinLimitMessage = '';
     this.persistPinnedTelemetryTimestamps();
     this.telemetryNavigatorOffset = 0;
