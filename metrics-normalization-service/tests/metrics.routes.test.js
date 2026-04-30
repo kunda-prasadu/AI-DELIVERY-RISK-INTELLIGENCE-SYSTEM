@@ -12,6 +12,7 @@ describe('metrics.routes', () => {
   beforeEach(() => {
     aggregator._reset();
     orchestrator.previousSnapshot = new Map();
+    orchestrator.snapshotHistory = new Map();
 
     app = express();
     app.use(express.json());
@@ -190,5 +191,48 @@ describe('metrics.routes', () => {
     expect(res.body.totalProjects).toBe(2);
     expect(res.body.anomalies[0].projectId).toBe('p-high');
     expect(res.body.anomalies[0].anomalyScore).toBeGreaterThanOrEqual(res.body.anomalies[1].anomalyScore);
+  });
+
+  test('GET /metrics/projects/:projectId/risk-trend returns 404 when no history', async () => {
+    const res = await request(app).get('/metrics/projects/unknown-proj/risk-trend');
+    expect(res.status).toBe(404);
+  });
+
+  test('GET /metrics/projects/:projectId/risk-trend returns trend after snapshots captured', async () => {
+    // First snapshot — 1 critical event
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-trend',
+      timestamp: '2026-04-29T10:00:00.000Z',
+      severity: 'critical',
+    });
+    orchestrator.captureSnapshot();
+
+    // Second snapshot — 3 critical events
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-trend',
+      timestamp: '2026-04-29T10:05:00.000Z',
+      severity: 'critical',
+    });
+    aggregator.ingest({
+      source: 'qa',
+      eventType: 'test_failure',
+      projectId: 'p-trend',
+      timestamp: '2026-04-29T10:06:00.000Z',
+      severity: 'critical',
+    });
+    orchestrator.captureSnapshot();
+
+    const res = await request(app).get('/metrics/projects/p-trend/risk-trend');
+    expect(res.status).toBe(200);
+    expect(res.body.projectId).toBe('p-trend');
+    expect(res.body.snapshots).toHaveLength(2);
+    expect(res.body.trend).toBe('worsening');
+    expect(res.body.deltaScore).toBeGreaterThan(0);
+    expect(res.body.snapshots[0]).toHaveProperty('riskScore');
+    expect(res.body.snapshots[0]).toHaveProperty('band');
   });
 });

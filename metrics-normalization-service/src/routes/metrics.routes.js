@@ -6,6 +6,7 @@ const aggregator = require('../models/metrics.aggregator');
 const orchestrator = require('../models/pipeline.orchestrator');
 const { analyzeProjectTrend } = require('../models/trend.analyzer');
 const { classifyProjectAnomaly, classifyPortfolioAnomalies } = require('../models/anomaly.classifier');
+const { buildRiskTrend } = require('../models/risk.trend.calculator');
 
 const router = express.Router();
 
@@ -42,6 +43,12 @@ router.get('/projects/:projectId/anomalies', (req, res) => {
 
   const previous = orchestrator.getPreviousMetrics(req.params.projectId);
   return res.status(200).json(classifyProjectAnomaly(current, previous));
+});
+
+router.get('/projects/:projectId/risk-trend', (req, res) => {
+  const history = orchestrator.getSnapshotHistory(req.params.projectId);
+  if (!history.length) return res.status(404).json({ error: 'No snapshot history found for project' });
+  return res.status(200).json(buildRiskTrend(req.params.projectId, history));
 });
 
 router.get('/projects', (_req, res) => {
