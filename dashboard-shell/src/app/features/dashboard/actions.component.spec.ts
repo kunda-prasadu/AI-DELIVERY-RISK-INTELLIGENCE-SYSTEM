@@ -405,4 +405,64 @@ describe('ActionsComponent', () => {
       done();
     }, 100);
   });
+
+  it('should expose chart points and labels for richer telemetry semantics', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (60 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 25 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+
+      const chartPoints = secondComponent.getTelemetryChartPoints();
+
+      expect(chartPoints.length).toBe(4);
+      expect(chartPoints.every((chartPoint) => chartPoint.x >= 4 && chartPoint.x <= secondComponent.chartWidth)).toBeTrue();
+      expect(chartPoints.every((chartPoint) => chartPoint.y >= 0 && chartPoint.y <= secondComponent.chartHeight)).toBeTrue();
+      expect(secondComponent.getTelemetryWindowLowRate()).toBe(0);
+      expect(secondComponent.getTelemetryWindowStartLabel()).not.toBe('--');
+      expect(secondComponent.getTelemetryWindowEndLabel()).not.toBe('--');
+      done();
+    }, 100);
+  });
+
+  it('should track the active telemetry point for hover detail and reset to the latest point', (done) => {
+    const now = Date.now();
+    const seed = [
+      { timestamp: now - (2 * 60 * 60 * 1000), openCount: 5, inProgressCount: 0, completedCount: 0, adoptionRate: 10 },
+      { timestamp: now - (60 * 60 * 1000), openCount: 4, inProgressCount: 1, completedCount: 0, adoptionRate: 20 },
+      { timestamp: now - (10 * 60 * 1000), openCount: 3, inProgressCount: 1, completedCount: 1, adoptionRate: 40 },
+    ];
+
+    localStorage.setItem('ri-action-telemetry-v1', JSON.stringify(seed));
+
+    const secondFixture = TestBed.createComponent(ActionsComponent);
+    const secondComponent = secondFixture.componentInstance;
+    secondFixture.detectChanges();
+
+    setTimeout(() => {
+      secondComponent.setTelemetryWindow('24h');
+      const windowPoints = secondComponent.getTelemetryWindowPoints();
+      const hoveredPoint = windowPoints[0];
+      const latestPoint = windowPoints[windowPoints.length - 1];
+
+      secondComponent.setHoveredTelemetryPoint(hoveredPoint);
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(hoveredPoint.timestamp);
+      expect(secondComponent.isActiveTelemetryPoint(hoveredPoint)).toBeTrue();
+
+      secondComponent.clearHoveredTelemetryPoint();
+      expect(secondComponent.getActiveTelemetryPoint()?.timestamp).toBe(latestPoint.timestamp);
+      expect(secondComponent.getTelemetryChartAriaLabel()).toContain('current highlighted point');
+      done();
+    }, 100);
+  });
 });
